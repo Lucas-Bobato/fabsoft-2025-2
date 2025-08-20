@@ -71,3 +71,89 @@ Estas histórias garantem que o usuário seja informado sobre as atividades rele
 * **Como um usuário, eu quero receber um lembrete** antes de uma partida, para que eu não me esqueça do evento.
 * **Como um usuário, eu quero avaliar a organização de um evento**, para que a comunidade possa saber se o criador é um bom organizador de jogos.
 * **Como um usuário, eu quero dar feedback sobre o aplicativo**, para ajudar a melhorar a experiência de uso.
+
+---
+
+### Aula 19/08
+
+```mermaid
+
+---
+title: Zports - Diagrama de Entidades
+---
+
+classDiagram
+    direction LR
+    Usuario "1" -- "*" Evento
+    Usuario "*" -- "*" Evento
+    Usuario "*" -- "*" Usuario
+    Evento "1" -- "1" Local
+    Avaliacao "*" -- "1" Usuario
+    Avaliacao "*" -- "1" Evento
+
+
+    namespace entity {
+        class Usuario {
+            -id: long
+            -nome: String
+            -email: String
+            -estatisticas: String
+
+            +getId(): long
+            +setId(id: long): void
+            +getNome(): String
+            +setNome(nome: String): void
+            +getEmail(): String
+            +setEmail(email: String): void
+            +getEstatisticas(): String
+            +setEstatisticas(estatisticas: String): void
+        }
+
+        class Evento {
+            -id: long
+            -esporte: String
+            -data: Date
+            -hora: Time
+            -isPublico: boolean
+
+            +getId(): long
+            +setId(id: long): void
+            +getEsporte(): String
+            +setEsporte(esporte: String): void
+            +getData(): Date
+            +setData(data: Date): void
+            +getHora(): Time
+            +setHora(hora: Time): void
+            +getIsPublico(): boolean
+            +setIsPublico(isPublico: boolean): void
+        }
+
+        class Local {
+            -id: long
+            -nome: String
+            -endereco: String
+
+            +getId(): long
+            +setId(id: long): void
+            +getNome(): String
+            +setNome(nome: String): void
+            +getEndereco(): String
+            +setEndereco(endereco: String): void
+        }
+
+        class Avaliacao {
+            -id: long
+            -nota: int
+            -comentario: String
+
+            +getId(): long
+            +setId(id: long): void
+            +getNota(): int
+            +setNota(nota: int): void
+            +getComentario(): String
+            +setComentario(comentario: String): void
+        }
+    }
+
+
+```
