@@ -12,6 +12,7 @@
     <modules>
         <module>revisao-poo-lucas</module>
         <module>revisao-poo-jandir</module>
+        <module>fabsoft-backend</module>
     </modules>
 
 </project>
