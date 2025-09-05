@@ -1,0 +1,310 @@
+from pydantic import BaseModel, EmailStr, Field, field_validator
+from typing import Optional, List
+from datetime import datetime, date
+from .models import NivelUsuario, StatusUsuario
+
+# --- Schemas para Liga ---
+class LigaBase(BaseModel):
+    nome: str
+    pais: str
+
+class LigaCreate(LigaBase):
+    pass
+
+class Liga(LigaBase):
+    id: int
+    model_config = {"from_attributes": True}
+
+# --- Schemas para Time ---
+class TimeBase(BaseModel):
+    api_id: Optional[int] = None
+    nome: str
+    sigla: str
+    cidade: Optional[str] = None
+    logo_url: Optional[str] = None
+    liga_id: int
+
+class TimeCreate(TimeBase):
+    pass
+
+class Time(TimeBase):
+    id: int
+    model_config = {"from_attributes": True}
+
+class TimeSimple(BaseModel):
+    id: int
+    nome: str
+    sigla: str
+    logo_url: Optional[str] = None
+    model_config = {"from_attributes": True}
+    
+class TimeRecord(BaseModel):
+    temporada: str
+    vitorias: int
+    derrotas: int
+
+# --- Schemas para Jogador ---
+class JogadorBase(BaseModel):
+    api_id: Optional[int] = None
+    nome: str
+    numero_camisa: Optional[int] = None
+    posicao: Optional[str] = None
+    foto_url: Optional[str] = None
+    time_atual_id: int
+
+class JogadorCreate(JogadorBase):
+    pass
+
+class JogadorCreateComDetails(JogadorBase):
+    data_nascimento: Optional[date] = None
+    ano_draft: Optional[int] = None
+    anos_experiencia: Optional[int] = None
+class Jogador(JogadorBase):
+    id: int
+    time_atual: Optional[TimeSimple] = None
+    model_config = {"from_attributes": True}
+    
+class JogadorGameLog(BaseModel):
+    jogo_id: int
+    data_jogo: datetime
+    adversario: TimeSimple
+    pontos: int
+    rebotes: int
+    assistencias: int
+    model_config = {"from_attributes": True}
+    
+class ConquistaJogador(BaseModel):
+    nome_conquista: str
+    temporada: str
+    model_config = {"from_attributes": True}
+    
+class JogadorStatsTemporada(BaseModel):
+    temporada: str = Field(..., description="A temporada a que as estatísticas se referem.", json_schema_extra="2023-24")
+    jogos_disputados: int = Field(..., description="Número de jogos que o jogador disputou na temporada.", json_schema_extra=82)
+    pontos_por_jogo: float = Field(..., description="Média de pontos por jogo (PPG).", json_schema_extra=25.9)
+    rebotes_por_jogo: float = Field(..., description="Média de ressaltos por jogo (RPG).", json_schema_extra=8.2)
+    assistencias_por_jogo: float = Field(..., description="Média de assistências por jogo (APG).", json_schema_extra=7.3)
+    model_config = {"from_attributes": True}
+class JogadorDetails(Jogador):
+    data_nascimento: Optional[date] = Field(None, json_schema_extra="1995-02-19")
+    ano_draft: Optional[int] = Field(None, description="Ano em que o jogador foi draftado.", json_schema_extra=2014)
+    anos_experiencia: Optional[int] = Field(None, description="Número de temporadas de experiência na liga.", json_schema_extra=10)
+    idade: Optional[int] = Field(None, description="Idade do jogador, calculada dinamicamente.", json_schema_extra=30)
+    conquistas: List[ConquistaJogador] = []
+    stats_por_temporada: List[JogadorStatsTemporada] = []
+    
+class JogadorRoster(BaseModel):
+    id: int
+    nome: str
+    numero_camisa: Optional[int] = None
+    posicao: Optional[str] = None
+    foto_url: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+# --- Schemas para Jogo ---
+class JogoBase(BaseModel):
+    api_id: Optional[int] = None
+    data_jogo: datetime
+    temporada: str
+    liga_id: int
+    time_casa_id: int
+    time_visitante_id: int
+    arena: Optional[str] = None
+
+class JogoCreate(JogoBase):
+    pass
+
+class Jogo(JogoBase):
+    id: int
+    status_jogo: str
+    placar_casa: int
+    placar_visitante: int
+    time_casa: TimeSimple
+    time_visitante: TimeSimple
+    
+    model_config = {
+        "from_attributes": True,
+        "json_encoders": {
+            datetime: lambda v: v.isoformat(),
+        }
+    }
+    
+class SyncAwardsResponse(BaseModel):
+    novos_premios_adicionados: int
+    
+class SyncAllAwardsResponse(BaseModel):
+    total_premios_sincronizados: int
+
+# --- Schemas para Usuario ---
+class UsuarioBase(BaseModel):
+    username: str
+    email: EmailStr
+    nome_completo: Optional[str] = None
+    time_favorito_id: Optional[int] = None
+
+class UsuarioCreate(UsuarioBase):
+    senha: str
+
+class Usuario(UsuarioBase):
+    id: int
+    data_cadastro: datetime
+    nivel_usuario: NivelUsuario
+    pontos_experiencia: int
+    status: StatusUsuario
+    model_config = {"from_attributes": True}
+    
+class UsuarioSimple(BaseModel):
+    id: int
+    username: str
+    foto_perfil: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+# --- Schemas para Avaliacao_Jogo ---
+class AvaliacaoJogoBase(BaseModel):
+    nota_geral: float = Field(..., ge=0.5, le=5)
+    nota_ataque_casa: Optional[float] = Field(None, ge=0.5, le=5)
+    nota_defesa_casa: Optional[float] = Field(None, ge=0.5, le=5)
+    nota_ataque_visitante: Optional[float] = Field(None, ge=0.5, le=5)
+    nota_defesa_visitante: Optional[float] = Field(None, ge=0.5, le=5)
+    nota_arbitragem: Optional[float] = Field(None, ge=0.5, le=5)
+    nota_atmosfera: Optional[float] = Field(None, ge=0.5, le=5)
+    resenha: Optional[str] = None
+    melhor_jogador_id: Optional[int] = None
+    pior_jogador_id: Optional[int] = None
+
+    @field_validator('nota_geral', 'nota_ataque_casa', 'nota_defesa_casa', 'nota_ataque_visitante', 'nota_defesa_visitante', 'nota_arbitragem', 'nota_atmosfera')
+    @classmethod
+    def validar_incremento_de_nota(cls, v: float):
+        if v is not None and (v * 2) % 1 != 0:
+            raise ValueError('A nota deve ser em incrementos de 0.5')
+        return v
+
+class AvaliacaoJogoCreate(AvaliacaoJogoBase):
+    pass
+
+class AvaliacaoJogo(AvaliacaoJogoBase):
+    id: int
+    data_avaliacao: datetime
+    curtidas: int
+    usuario: UsuarioSimple
+    model_config = {"from_attributes": True}
+    
+# --- Schemas para Estatistica_Jogador_Jogo ---
+class EstatisticaBase(BaseModel):
+    minutos_jogados: float
+    pontos: int
+    rebotes: int
+    assistencias: int
+
+class EstatisticaCreate(EstatisticaBase):
+    jogador_id: int
+
+class Estatistica(EstatisticaBase):
+    id: int
+    jogador: Jogador
+    model_config = {"from_attributes": True}
+    
+# --- Schemas para Comentario_Avaliacao ---
+class ComentarioBase(BaseModel):
+    comentario: str
+    resposta_para_id: Optional[int] = None
+
+class ComentarioCreate(ComentarioBase):
+    pass
+
+class Comentario(ComentarioBase):
+    id: int
+    data_comentario: datetime
+    curtidas: int
+    usuario: UsuarioSimple
+    model_config = {"from_attributes": True}
+
+# --- Schema para Resposta de Curtida ---
+class CurtidaResponse(BaseModel):
+    avaliacao_id: int
+    total_curtidas: int
+    curtido: bool
+    
+# --- Schemas para Conquistas ---
+class ConquistaBase(BaseModel):
+    nome: str
+    descricao: str
+    icone_url: Optional[str] = None
+    pontos_experiencia: int
+
+class ConquistaCreate(ConquistaBase):
+    pass
+
+class Conquista(ConquistaBase):
+    id: int
+    model_config = {"from_attributes": True}
+
+class UsuarioConquista(BaseModel):
+    data_desbloqueio: datetime
+    conquista: Optional[Conquista] = None
+    
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True
+    }
+    
+    @classmethod
+    def model_validate(cls, obj):
+        """
+        Override para garantir que o relacionamento conquista seja carregado corretamente.
+        """
+        if hasattr(obj, 'conquista') and obj.conquista:
+            # Força a conversão do objeto conquista para o schema Conquista
+            conquista_dict = Conquista.model_validate(obj.conquista)
+            return cls(
+                data_desbloqueio=obj.data_desbloqueio,
+                conquista=conquista_dict
+            )
+        return super().model_validate(obj)
+
+# --- Schemas para Notificações ---
+class Notificacao(BaseModel):
+    id: int
+    tipo: str
+    mensagem: str
+    lida: bool
+    data_criacao: datetime
+    referencia_id: int
+    referencia_tipo: str
+    model_config = {"from_attributes": True}
+
+# --- Schemas para Feed ---
+class FeedAtividade(BaseModel):
+    id: int
+    tipo_atividade: str
+    data_atividade: datetime
+    usuario: UsuarioSimple
+    referencia_id: int
+    referencia_tipo: str
+    model_config = {"from_attributes": True}
+    
+# --- Schemas para Autenticação e Sincronização ---
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+    
+class SyncResponse(BaseModel):
+    total_sincronizado: int
+    novos_adicionados: int
+    
+class ConquistaTime(BaseModel):
+    nome_conquista: str
+    temporada: str
+    model_config = {"from_attributes": True}
+
+class TimeDetails(Time):
+    conquistas: List[ConquistaTime] = []
+    
+class SyncChampionshipsResponse(BaseModel):
+    novos_titulos_adicionados: int
+
+class SyncAllChampionshipsResponse(BaseModel):
+    total_titulos_sincronizados: int
