@@ -9,50 +9,44 @@ import math
 import time
 
 def sync_nba_players(db: Session):
-    print("Iniciando a sincronização de jogadores da NBA...")
+    print("Iniciando a sincronização de jogadores da NBA em lotes...")
     
     player_data = None
     max_retries = 3
     
+    # Busca a lista completa de jogadores (isto é rápido e não costuma falhar)
     print("Buscando a lista completa de jogadores da API...")
-    for attempt in range(max_retries):
-        try:
-            # Tenta buscar a lista completa de jogadores com timeout aumentado
-            player_data_endpoint = commonallplayers.CommonAllPlayers(
-                is_only_current_season=1,
-                timeout=60 # Aumentamos o timeout aqui também
-            )
-            player_data = player_data_endpoint.get_data_frames()[0]
-            print(" -> Lista de jogadores recebida com sucesso!")
-            break # Se for bem sucedido, sai do loop
-        except Exception as e:
-            if attempt < max_retries - 1:
-                wait_time = (attempt + 1) * 5
-                print(f"  -> Timeout ao buscar lista de jogadores (tentativa {attempt + 1}). A aguardar {wait_time}s...")
-                time.sleep(wait_time)
-            else:
-                print("ERRO FINAL: Não foi possível buscar a lista de jogadores da NBA após várias tentativas.")
-                # Se não conseguirmos a lista, não há como continuar.
-                return {"total_sincronizado": 0, "novos_adicionados": 0}
+    try:
+        player_data_endpoint = commonallplayers.CommonAllPlayers(is_only_current_season=0, timeout=60)
+        player_data = player_data_endpoint.get_data_frames()[0]
+        print(f" -> Lista de {len(player_data)} jogadores recebida com sucesso!")
+    except Exception as e:
+        print(f"ERRO CRÍTICO: Não foi possível buscar a lista de jogadores da NBA. Sincronização abortada. Erro: {e}")
+        return {"total_sincronizado": 0, "novos_adicionados": 0}
 
     jogadores_adicionados = 0
     jogadores_atualizados = 0
     total_jogadores = len(player_data)
+    LOTE_TAMANHO = 500
+    PAUSA_MINUTOS = 10
 
     for i, player_summary in player_data.iterrows():
+        if i > 0 and i % LOTE_TAMANHO == 0:
+            print(f"--- Lote de {LOTE_TAMANHO} jogadores processado. Pausando por {PAUSA_MINUTOS} minutos... ---")
+            time.sleep(PAUSA_MINUTOS * 60)
+            print(f"--- Pausa terminada. Retomando a sincronização... ---")
+
         print(f"Processando jogador {i+1}/{total_jogadores}: {player_summary['DISPLAY_FIRST_LAST']}...")
-        
         db_jogador = crud.get_jogador_by_api_id(db, api_id=player_summary['PERSON_ID'])
         
         try:
-            time.sleep(1.1)
+            time.sleep(1.1) # Mantemos a pequena pausa entre cada jogador
             
             player_info_df = None
-            # Lógica de retentativas para detalhes individuais (já implementada)
             for attempt in range(max_retries):
                 try:
                     player_info_df = commonplayerinfo.CommonPlayerInfo(
-                        player_id=player_summary['PERSON_ID'], 
+                        player_id=player_summary['PERSON_ID'],
                         timeout=60
                     ).get_data_frames()
                     break
@@ -115,7 +109,7 @@ def sync_nba_players(db: Session):
         except Exception as e:
             print(f"ERRO FINAL ao processar jogador ID {player_summary['PERSON_ID']}: {e}. A avançar para o próximo.")
 
-    print(f"\nSincronização concluída. {jogadores_adicionados} novos jogadores adicionados, {jogadores_atualizados} atualizados.")
+    print(f"\nSincronização COMPLETA de todos os jogadores terminada. {jogadores_adicionados} novos jogadores adicionados, {jogadores_atualizados} atualizados.")
     return {"total_sincronizado": total_jogadores, "novos_adicionados": jogadores_adicionados}
 
 def safe_int(value):
@@ -378,7 +372,7 @@ def sync_all_players_awards(db: Session):
     Percorre TODOS os jogadores no banco de dados e busca os seus prémios.
     Este é um processo LONGO e que consome muitos recursos da API.
     """
-    todos_jogadores = crud.get_jogadores(db, limit=5000) # Busca todos os jogadores
+    todos_jogadores = crud.get_jogadores(db, limit=6000) # Busca todos os jogadores
     total_premios_adicionados = 0
     
     print(f"Iniciando sincronização de prémios para {len(todos_jogadores)} jogadores...")

@@ -308,3 +308,47 @@ class SyncChampionshipsResponse(BaseModel):
 
 class SyncAllChampionshipsResponse(BaseModel):
     total_titulos_sincronizados: int
+    
+class ComparacaoJogadoresResponse(BaseModel):
+    jogador1: JogadorDetails
+    jogador2: JogadorDetails
+    
+# --- Schemas para o Boxscore Ao Vivo ---
+
+class LivePlayerStats(BaseModel):
+    player_id: int
+    player_name: str
+    position: Optional[str] = ""
+    minutes: str = "00:00"
+    points: int = 0
+    rebounds: int = 0
+    assists: int = 0
+    steals: int = 0
+    blocks: int = 0
+
+class LiveTeamStats(BaseModel):
+    team_id: int
+    team_name: str
+    team_abbreviation: str
+    points: int = 0
+    fg_pct: float = 0.0
+    fg3_pct: float = 0.0
+    ft_pct: float = 0.0
+    rebounds: int = 0
+    assists: int = 0
+    turnovers: int = 0
+    players: List[LivePlayerStats] = []
+
+class PlayByPlayEvent(BaseModel):
+    event_num: int
+    clock: Optional[str] = ""
+    period: int
+    description: Optional[str] = ""
+
+class LiveBoxscore(BaseModel):
+    game_id: str
+    game_status_text: str
+    period: int
+    home_team: LiveTeamStats
+    away_team: LiveTeamStats
+    play_by_play: List[PlayByPlayEvent] = []
