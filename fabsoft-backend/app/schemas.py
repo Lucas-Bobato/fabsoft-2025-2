@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field, field_validator, RootModel
+from typing import Optional, List, Union
 from datetime import datetime, date
 from .models import NivelUsuario, StatusUsuario
 
@@ -144,6 +144,7 @@ class UsuarioBase(BaseModel):
 
 class UsuarioCreate(UsuarioBase):
     senha: str
+    foto_perfil: Optional[str] = None
 
 class Usuario(UsuarioBase):
     id: int
@@ -151,6 +152,7 @@ class Usuario(UsuarioBase):
     nivel_usuario: NivelUsuario
     pontos_experiencia: int
     status: StatusUsuario
+    foto_perfil: Optional[str] = None
     model_config = {"from_attributes": True}
     
 class UsuarioSimple(BaseModel):
@@ -352,3 +354,16 @@ class LiveBoxscore(BaseModel):
     home_team: LiveTeamStats
     away_team: LiveTeamStats
     play_by_play: List[PlayByPlayEvent] = []
+
+# --- Schemas para Busca Avançada ---
+
+class SearchResult(RootModel[Union[Jogador, Jogo, Time]]):
+    """
+    Representa um único resultado de busca, que pode ser um Jogador, um Jogo ou um Time.
+    Utiliza pydantic.RootModel para definir um modelo raiz com múltiplos tipos.
+    """
+    pass
+
+class SearchResponse(BaseModel):
+    query: Optional[str] = None
+    results: List[SearchResult]

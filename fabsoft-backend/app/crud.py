@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from datetime import datetime, timedelta, date
+from typing import List, Optional, Union
 from . import models, schemas, security
 from .models import NivelUsuario
 
@@ -23,7 +24,8 @@ def create_user(db: Session, user: schemas.UsuarioCreate):
         username=user.username,
         nome_completo=user.nome_completo,
         time_favorito_id=user.time_favorito_id,
-        senha=hashed_password
+        senha=hashed_password,
+        foto_perfil=user.foto_perfil
     )
     db.add(db_user)
     db.commit()
@@ -691,4 +693,47 @@ def get_conquistas_por_usuario(db: Session, user_id: int):
         .options(joinedload(models.Usuario_Conquista.conquista))\
         .filter(models.Usuario_Conquista.usuario_id == user_id)\
         .all()
+        
+# --- Função para Busca Avançada ---
 
+def perform_advanced_search(
+    db: Session,
+    nome_jogador: Optional[str] = None,
+    pontos_min: Optional[int] = None,
+    temporada: Optional[str] = None,
+    nome_time: Optional[str] = None,
+    abreviacao_time: Optional[str] = None
+) -> List[Union[models.Jogador, models.Jogo, models.Time]]:
+    """
+    Realiza uma busca avançada por jogadores, jogos ou times.
+    """
+    resultados = []
+
+    # Se critérios de jogador forem fornecidos, busca jogadores
+    if nome_jogador:
+        query_jogador = db.query(models.Jogador)
+        query_jogador = query_jogador.filter(models.Jogador.nome.ilike(f"%{nome_jogador}%"))
+        resultados.extend(query_jogador.limit(10).all())
+
+    # Se critérios de jogo forem fornecidos, busca jogos
+    if pontos_min and temporada:
+        query_jogos = db.query(models.Jogo)\
+            .join(models.Estatistica_Jogador_Jogo)\
+            .filter(
+                models.Jogo.temporada == temporada,
+                models.Estatistica_Jogador_Jogo.pontos >= pontos_min
+            )\
+            .distinct()\
+            .limit(10)
+        resultados.extend(query_jogos.all())
+
+    if nome_time or abreviacao_time:
+        query_time = db.query(models.Time)
+        if nome_time:
+            query_time = query_time.filter(models.Time.nome.ilike(f"%{nome_time}%"))
+        if abreviacao_time:
+            query_time = query_time.filter(models.Time.abreviacao.ilike(f"%{abreviacao_time}%"))
+        
+        resultados.extend(query_time.limit(10).all())
+
+    return resultados
