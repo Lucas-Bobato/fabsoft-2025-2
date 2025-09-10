@@ -43,75 +43,121 @@ Estas histórias de usuário descrevem as funcionalidades da plataforma sob a pe
 
 ```mermaid
 ---
-title: SlamTalk - Diagrama de Entidades
+title: SlamTalk - Diagrama de Entidades (Atualizado)
 ---
 classDiagram
     direction LR
 
     class Usuario {
-        -id: int
-        -username: String
-        -email: String
-        -nivel_usuario: NivelUsuario
-        -pontos_experiencia: int
-        +avalia(Jogo)
-        +comenta(Avaliacao_Jogo)
-        +segue(Usuario)
+        +int id
+        +String username
+        +EmailStr email
+        +NivelUsuario nivel_usuario
+        +int pontos_experiencia
+        +StatusUsuario status
+        +int time_favorito_id
     }
 
-    class Jogo {
-        -id: int
-        -data_jogo: DateTime
-        -status_jogo: String
-        -placar_casa: int
-        -placar_visitante: int
+    class Liga {
+        +int id
+        +String nome
+        +String pais
     }
 
     class Time {
-        -id: int
-        -nome: String
-        -sigla: String
-        -logo_url: String
+        +int id
+        +String nome
+        +String sigla
+        +String logo_url
+        +int liga_id
     }
 
     class Jogador {
-        -id: int
-        -nome: String
-        -posicao: String
-        -foto_url: String
+        +int id
+        +String nome
+        +String posicao
+        +String foto_url
+        +int time_atual_id
     }
 
-    class Avaliacao_Jogo {
-        -id: int
-        -nota_geral: int
-        -resenha: String
-        -curtidas: int
-        +e_comentada_por(Usuario)
+    class Jogo {
+        +int id
+        +datetime data_jogo
+        +String status_jogo
+        +int placar_casa
+        +int placar_visitante
+        +int time_casa_id
+        +int time_visitante_id
     }
 
-    class Comentario_Avaliacao {
-        -id: int
-        -comentario: String
-        -curtidas: int
+    class AvaliacaoJogo {
+        +int id
+        +float nota_geral
+        +String resenha
+        +int curtidas
+        +int usuario_id
+        +int jogo_id
+        +int melhor_jogador_id
+        +int pior_jogador_id
     }
 
-    class Seguidor {
-        -seguidor_id: int
-        -seguido_id: int
+    class Comentario {
+        +int id
+        +String comentario
+        +int curtidas
+        +int usuario_id
+        +int avaliacao_id
+        +int resposta_para_id
     }
 
-    Usuario "1" -- "0..*" Avaliacao_Jogo
-    Usuario "1" -- "0..*" Comentario_Avaliacao
-    Usuario "1" -- "0..*" Seguidor
-    Usuario "0..*" -- "1" Seguidor
+    class Conquista {
+        +int id
+        +String nome
+        +String descricao
+        +int pontos_experiencia
+    }
 
-    Jogo "1" -- "0..*" Avaliacao_Jogo
-    Jogo "1" -- "2" Time
+    class UsuarioConquista {
+        +datetime data_desbloqueio
+    }
     
-    Time "1" -- "0..*" Jogador
+    class Notificacao {
+        +int id
+        +String tipo
+        +String mensagem
+        +boolean lida
+        +int usuario_id
+    }
 
-    Avaliacao_Jogo "1" -- "0..*" Comentario_Avaliacao
-    Avaliacao_Jogo "1" -- "1" Usuario
-    Avaliacao_Jogo "1" -- "0..2" Jogador
+    class EstatisticaJogadorJogo {
+        +int id
+        +float minutos_jogados
+        +int pontos
+        +int rebotes
+        +int assistencias
+    }
+
+    %% --- Relacionamentos ---
+    Usuario "1" -- "*" AvaliacaoJogo
+    Usuario "1" -- "*" Comentario
+    Usuario "1" -- "*" Notificacao
+    Usuario "1" -- "1" Time : "Time Favorito"
+    Usuario "1" -- "*" Usuario : "Seguindo"
+
+    Liga "1" -- "*" Time
+    Time "1" -- "*" Jogador
+    Jogo "1" -- "2" Time
+
+    Jogo "1" -- "*" AvaliacaoJogo
+    Jogo "1" -- "*" EstatisticaJogadorJogo
+    
+    Jogador "1" -- "*" EstatisticaJogadorJogo
+    AvaliacaoJogo "1" -- "2" Jogador : "Melhor e Pior Jogador"
+
+    AvaliacaoJogo "1" -- "*" Comentario
+    Comentario "1" -- "*" Comentario : "Responder outro comentário"
+
+    Usuario "1" -- "*" UsuarioConquista
+    Conquista "1" -- "*" UsuarioConquista
 
 ```
