@@ -1,0 +1,29 @@
+# --- Framework Principal ---
+fastapi
+uvicorn[standard]
+
+# --- Banco de Dados ---
+sqlalchemy
+# Para SQLite (usado em desenvolvimento)
+# Nenhum pacote extra é geralmente necessário com Python moderno
+# Para PostgreSQL (exemplo de produção), descomente a linha abaixo
+# psycopg2-binary
+
+# --- Autenticação e Segurança ---
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
+pydantic[email]
+
+# --- API Externa ---
+nba-api
+
+# --- Configuração e Tipagem ---
+pydantic
+pydantic-settings
+
+# --- Dependências para Testes ---
+# (Instalar separadamente em ambiente de desenvolvimento)
+pytest
+pytest-mock
+httpx

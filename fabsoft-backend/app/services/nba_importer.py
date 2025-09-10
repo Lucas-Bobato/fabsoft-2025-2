@@ -17,7 +17,7 @@ def sync_nba_players(db: Session):
     # Busca a lista completa de jogadores (isto é rápido e não costuma falhar)
     print("Buscando a lista completa de jogadores da API...")
     try:
-        player_data_endpoint = commonallplayers.CommonAllPlayers(is_only_current_season=0, timeout=60)
+        player_data_endpoint = commonallplayers.CommonAllPlayers(is_only_current_season=1, timeout=60)
         player_data = player_data_endpoint.get_data_frames()[0]
         print(f" -> Lista de {len(player_data)} jogadores recebida com sucesso!")
     except Exception as e:
@@ -28,7 +28,7 @@ def sync_nba_players(db: Session):
     jogadores_atualizados = 0
     total_jogadores = len(player_data)
     LOTE_TAMANHO = 500
-    PAUSA_MINUTOS = 10
+    PAUSA_MINUTOS = 1
 
     for i, player_summary in player_data.iterrows():
         if i > 0 and i % LOTE_TAMANHO == 0:
