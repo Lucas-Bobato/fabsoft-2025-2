@@ -19,6 +19,7 @@ class Liga(LigaBase):
 class TimeBase(BaseModel):
     api_id: Optional[int] = None
     nome: str
+    slug: str
     sigla: str
     cidade: Optional[str] = None
     logo_url: Optional[str] = None
@@ -34,6 +35,7 @@ class Time(TimeBase):
 class TimeSimple(BaseModel):
     id: int
     nome: str
+    slug: str
     sigla: str
     logo_url: Optional[str] = None
     model_config = {"from_attributes": True}
@@ -59,8 +61,12 @@ class JogadorCreateComDetails(JogadorBase):
     data_nascimento: Optional[date] = None
     ano_draft: Optional[int] = None
     anos_experiencia: Optional[int] = None
+    altura: Optional[int] = None  # em centímetros
+    peso: Optional[float] = None    # em kg
+    nacionalidade: Optional[str] = None
 class Jogador(JogadorBase):
     id: int
+    slug: str
     time_atual: Optional[TimeSimple] = None
     model_config = {"from_attributes": True}
     
@@ -89,6 +95,9 @@ class JogadorDetails(Jogador):
     data_nascimento: Optional[date] = Field(None, json_schema_extra="1995-02-19")
     ano_draft: Optional[int] = Field(None, description="Ano em que o jogador foi draftado.", json_schema_extra=2014)
     anos_experiencia: Optional[int] = Field(None, description="Número de temporadas de experiência na liga.", json_schema_extra=10)
+    altura: Optional[int] = Field(None, description="Altura do jogador em centímetros.", json_schema_extra=206)
+    peso: Optional[float] = Field(None, description="Peso do jogador em quilogramas.", json_schema_extra=104.3)
+    nacionalidade: Optional[str] = Field(None, description="Nacionalidade do jogador.", json_schema_extra="EUA")
     idade: Optional[int] = Field(None, description="Idade do jogador, calculada dinamicamente.", json_schema_extra=30)
     conquistas: List[ConquistaJogador] = []
     stats_por_temporada: List[JogadorStatsTemporada] = []
@@ -96,6 +105,7 @@ class JogadorDetails(Jogador):
 class JogadorRoster(BaseModel):
     id: int
     nome: str
+    slug: str
     numero_camisa: Optional[int] = None
     posicao: Optional[str] = None
     foto_url: Optional[str] = None
@@ -116,6 +126,7 @@ class JogoCreate(JogoBase):
 
 class Jogo(JogoBase):
     id: int
+    slug: Optional[str] = None
     status_jogo: str
     placar_casa: int
     placar_visitante: int

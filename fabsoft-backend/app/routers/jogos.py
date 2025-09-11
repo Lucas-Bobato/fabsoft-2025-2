@@ -73,7 +73,7 @@ async def track_real_game(game_api_id: str):
             live_data = schemas.LiveBoxscore(
                 game_id=game_api_id,
                 game_status_text=game_info_df.iloc[0]['GAME_STATUS_TEXT'],
-                period=line_score_df.iloc[0]['GAME_SEQUENCE'], # Usando uma aproximação para o período
+                period=line_score_df.iloc[0]['GAME_SEQUENCE'],
                 home_team=home_team,
                 away_team=away_team,
                 play_by_play=play_by_play_events
@@ -147,9 +147,9 @@ def create_jogo(jogo: schemas.JogoCreate, db: Session = Depends(get_db)):
 def read_jogos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return crud.get_jogos(db, skip=skip, limit=limit)
 
-@router.get("/{jogo_id}", response_model=schemas.Jogo)
-def read_jogo(jogo_id: int, db: Session = Depends(get_db)):
-    db_jogo = crud.get_jogo(db, jogo_id=jogo_id)
+@router.get("/slug/{slug}", response_model=schemas.Jogo)
+def read_jogo_by_slug(slug: str, db: Session = Depends(get_db)):
+    db_jogo = crud.get_jogo_by_slug(db, slug=slug)
     if db_jogo is None:
         raise HTTPException(status_code=404, detail="Jogo não encontrado")
     return db_jogo

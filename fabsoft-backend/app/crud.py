@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, date
 from typing import List, Optional, Union
 from . import models, schemas, security
 from .models import NivelUsuario
+from .utils import generate_slug
 
 def get_user(db: Session, user_id: int):
     return db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
@@ -59,7 +60,9 @@ def get_time_by_api_id(db: Session, api_id: int):
     return db.query(models.Time).filter(models.Time.api_id == api_id).first()
 
 def create_time(db: Session, time: schemas.TimeCreate):
-    db_time = models.Time(**time.model_dump())
+    time_data = time.model_dump()
+    time_data["slug"] = generate_slug(time.nome)
+    db_time = models.Time(**time_data)
     db.add(db_time)
     db.commit()
     db.refresh(db_time)
@@ -113,8 +116,13 @@ def get_jogador_by_api_id(db: Session, api_id: int):
     """Busca um jogador pelo ID da API externa."""
     return db.query(models.Jogador).filter(models.Jogador.api_id == api_id).first()
 
+def get_jogador_by_slug(db: Session, jogador_slug: str):
+    return db.query(models.Jogador).filter(models.Jogador.slug == jogador_slug).first()
+
 def create_jogador_com_details(db: Session, jogador: schemas.JogadorCreateComDetails):
-    db_jogador = models.Jogador(**jogador.model_dump())
+    jogador_data = jogador.model_dump()
+    jogador_data["slug"] = generate_slug(jogador.nome)
+    db_jogador = models.Jogador(**jogador_data)
     db.add(db_jogador)
     db.commit()
     db.refresh(db_jogador)
@@ -160,57 +168,64 @@ def get_jogador_stats_por_temporada(db: Session, jogador_id: int) -> list[schema
     ]
     
 
-def get_jogador_details(db: Session, jogador_id: int):
+def get_jogador_details(db: Session, jogador_slug: str):
     """
-    Busca os detalhes completos de um jogador.
-    Inclui uma conversão manual de 'bytes' para 'int' para o campo 'anos_experiencia'
-    como workaround para um problema do driver do banco de dados.
+    Busca os detalhes completos de um jogador a partir do seu slug.
     """
     db_jogador = db.query(models.Jogador).options(
         joinedload(models.Jogador.time_atual)
-    ).filter(models.Jogador.id == jogador_id).first()
+    ).filter(models.Jogador.slug == jogador_slug).first()
     
     if not db_jogador:
         return None
-
-    idade = None
-    if db_jogador.data_nascimento:
-        hoje = date.today()
-        idade = hoje.year - db_jogador.data_nascimento.year - ((hoje.month, hoje.day) < (db_jogador.data_nascimento.month, db_jogador.data_nascimento.day))
-
-    conquistas = db.query(models.Conquista_Jogador).filter(models.Conquista_Jogador.jogador_id == jogador_id).all()
-
-    stats_por_temporada = get_jogador_stats_por_temporada(db, jogador_id=jogador_id)
+    
     anos_exp_valor = db_jogador.anos_experiencia
-    anos_exp_int = None # Valor padrão
-
+    anos_exp_int = None
+    
     if isinstance(anos_exp_valor, bytes):
-        anos_exp_int = int.from_bytes(anos_exp_valor, 'little')
+        try:
+            anos_exp_int = int.from_bytes(anos_exp_valor, 'little')
+        except (ValueError, TypeError):
+            anos_exp_int = None
     elif anos_exp_valor is not None:
-        # Se não for bytes, tenta converter para int (para o caso de ser uma string)
         try:
             anos_exp_int = int(anos_exp_valor)
         except (ValueError, TypeError):
-            anos_exp_int = None # Se falhar, define como None
-
+            anos_exp_int = None
+            
     jogador_data = {
         "id": db_jogador.id,
         "api_id": db_jogador.api_id,
         "nome": db_jogador.nome,
+        "slug": db_jogador.slug,
         "numero_camisa": db_jogador.numero_camisa,
         "posicao": db_jogador.posicao,
-        "foto_url": db_jogador.foto_url,
-        "time_atual_id": db_jogador.time_atual_id,
-        "time_atual": db_jogador.time_atual,
         "data_nascimento": db_jogador.data_nascimento,
         "ano_draft": db_jogador.ano_draft,
         "anos_experiencia": anos_exp_int,
-        "idade": idade,
-        "conquistas": conquistas,
-        "stats_por_temporada": stats_por_temporada
+        "altura": db_jogador.altura,
+        "peso": db_jogador.peso,
+        "nacionalidade": db_jogador.nacionalidade,
+        "foto_url": db_jogador.foto_url,
+        "time_atual_id": db_jogador.time_atual_id,
+        "time_atual": db_jogador.time_atual
     }
     
-    return schemas.JogadorDetails(**jogador_data)
+    jogador_schema = schemas.JogadorDetails.model_validate(jogador_data)
+
+    idade = None
+    if db_jogador.data_nascimento:
+        hoje = date.today()
+        data_nasc = db_jogador.data_nascimento.date() if isinstance(db_jogador.data_nascimento, datetime) else db_jogador.data_nascimento
+        idade = hoje.year - data_nasc.year - ((hoje.month, hoje.day) < (data_nasc.month, data_nasc.day))
+
+    conquistas = db.query(models.Conquista_Jogador).filter(models.Conquista_Jogador.jogador_id == db_jogador.id).all()
+    stats_por_temporada = get_jogador_stats_por_temporada(db, jogador_id=db_jogador.id)
+    jogador_schema.idade = idade
+    jogador_schema.conquistas = conquistas
+    jogador_schema.stats_por_temporada = stats_por_temporada
+    
+    return jogador_schema
 
 def get_jogador_gamelog_season(db: Session, jogador_id: int, season: str):
     # Busca todas as estatísticas de um jogador para os jogos de uma temporada específica
@@ -265,9 +280,21 @@ def get_jogo_by_api_id(db: Session, api_id: int):
     """Busca um jogo pelo ID da API externa."""
     return db.query(models.Jogo).filter(models.Jogo.api_id == api_id).first()
 
+def get_jogo_by_slug(db: Session, slug: str):
+    """Busca um jogo pelo seu slug."""
+    return db.query(models.Jogo).filter(models.Jogo.slug == slug).first()
+
 def create_jogo(db: Session, jogo: schemas.JogoCreate):
     db_jogo = models.Jogo(**jogo.model_dump())
     db.add(db_jogo)
+    db.flush()
+    db.refresh(db_jogo)
+
+    if db_jogo.api_id and db_jogo.time_casa and db_jogo.time_visitante:
+        home_abbr = db_jogo.time_casa.sigla.lower()
+        away_abbr = db_jogo.time_visitante.sigla.lower()
+        db_jogo.slug = f"{away_abbr}-vs-{home_abbr}-{db_jogo.api_id}"
+    
     db.commit()
     db.refresh(db_jogo)
     return db_jogo
@@ -517,16 +544,34 @@ def update_jogo_scores(db: Session, jogo_id: int, placar_casa: int, placar_visit
     })
     db.commit()
     
-def update_jogador_details(db: Session, jogador_id: int, posicao: str, numero_camisa: int, data_nascimento: date, ano_draft: int, anos_experiencia: int):
+def update_jogador_details(db: Session, jogador_id: int, posicao: str, numero_camisa: int, data_nascimento: date, ano_draft: int, anos_experiencia: int, altura: int, peso: float, nacionalidade: str):
     """Atualiza um jogador com sua posição, número de camisa e outros detalhes."""
     db.query(models.Jogador).filter(models.Jogador.id == jogador_id).update({
         "posicao": posicao,
         "numero_camisa": numero_camisa,
         "data_nascimento": data_nascimento,
         "ano_draft": ano_draft,
-        "anos_experiencia": anos_experiencia
+        "anos_experiencia": anos_experiencia,
+        "altura": altura,
+        "peso": peso,
+        "nacionalidade": nacionalidade
     })
     db.commit()
+    
+def update_time(db: Session, time_id: int, time: schemas.TimeCreate):
+    db_time = db.query(models.Time).filter(models.Time.id == time_id).first()
+    if not db_time:
+        return None
+    
+    time_data = time.model_dump(exclude_unset=True)
+    if "nome" in time_data and time_data["nome"] != db_time.nome:
+        time_data["slug"] = generate_slug(time_data["nome"])
+
+    for key, value in time_data.items():
+        setattr(db_time, key, value)
+    db.commit()
+    db.refresh(db_time)
+    return db_time
     
 def get_upcoming_games(db: Session, limit: int = 5):
     """
@@ -569,6 +614,9 @@ def add_conquista_time(db: Session, time_id: int, nome_conquista: str, temporada
         db.commit()
         return nova_conquista
     return None
+
+def get_time_by_slug(db: Session, time_slug: str):
+    return db.query(models.Time).filter(models.Time.slug == time_slug).first()
 
 def get_time_details(db: Session, time_id: int):
     db_time = db.query(models.Time).filter(models.Time.id == time_id).first()
