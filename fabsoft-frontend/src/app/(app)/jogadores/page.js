@@ -47,7 +47,7 @@ export default function JogadoresPage() {
             placeholder="Buscar jogador..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="input-style w-full pl-10"
+            className="w-full bg-gray-900/70 border border-gray-600 rounded-lg py-3 pr-4 pl-10 focus:ring-2 focus:ring-[#4DA6FF] focus:outline-none transition-all placeholder-gray-500"
           />
         </div>
       </div>
@@ -60,7 +60,7 @@ export default function JogadoresPage() {
             <Link
               key={player.id}
               href={`/jogadores/${player.slug}`}
-              className="bg-[#161b22] border border-gray-800 p-4 rounded-lg flex flex-col items-center text-center hover:border-gray-600 transition-colors"
+              className="bg-[#082139] border border-gray-800 p-4 rounded-lg flex flex-col items-center text-center hover:border-gray-600 transition-colors"
             >
               <Image
                 src={player.foto_url || "/placeholder.png"}

@@ -2,10 +2,11 @@
 import { useState, useEffect } from "react";
 import api from "@/services/api";
 import Image from "next/image";
-import StarRating from "./StarRating";
+import StarRating from "./ColorRating";
 
 // 1. Importe os ícones que você precisa da biblioteca Lucide
 import { Star, Shield, Swords, Drum } from "lucide-react";
+import ColorRating from "./ColorRating";
 
 // 2. Crie um componente para o seu SVG de apito personalizado
 const WhistleIcon = (props) => (
@@ -120,11 +121,12 @@ export default function RatingModal({ game, closeModal, onReviewSubmit }) {
               Nota da Partida
             </label>
             {/* 3. Passe os componentes de ícone da Lucide como props */}
-            <StarRating
+            <ColorRating
               onRatingChange={(value) =>
                 handleRatingChange("nota_geral", value)
               }
               icon={Star}
+              colorClass="text-yellow-400"
             />
           </div>
 
@@ -146,20 +148,22 @@ export default function RatingModal({ game, closeModal, onReviewSubmit }) {
               <p className="font-bold">{game.time_visitante.nome}</p>
               <div>
                 <label className="text-xs text-gray-400">ATAQUE</label>
-                <StarRating
+                <ColorRating
                   onRatingChange={(value) =>
                     handleRatingChange("nota_ataque_visitante", value)
                   }
                   icon={Swords}
+                  colorClass="text-[#F97316]"
                 />
               </div>
               <div>
                 <label className="text-xs text-gray-400">DEFESA</label>
-                <StarRating
+                <ColorRating
                   onRatingChange={(value) =>
                     handleRatingChange("nota_defesa_visitante", value)
                   }
                   icon={Shield}
+                  colorClass="text-blue-500"
                 />
               </div>
             </div>
@@ -167,20 +171,22 @@ export default function RatingModal({ game, closeModal, onReviewSubmit }) {
               <p className="font-bold">{game.time_casa.nome}</p>
               <div>
                 <label className="text-xs text-gray-400">ATAQUE</label>
-                <StarRating
+                <ColorRating
                   onRatingChange={(value) =>
                     handleRatingChange("nota_ataque_casa", value)
                   }
                   icon={Swords}
+                  colorClass="text-[#F97316]"
                 />
               </div>
               <div>
                 <label className="text-xs text-gray-400">DEFESA</label>
-                <StarRating
+                <ColorRating
                   onRatingChange={(value) =>
                     handleRatingChange("nota_defesa_casa", value)
                   }
                   icon={Shield}
+                  colorClass="text-blue-500"
                 />
               </div>
             </div>
@@ -194,6 +200,7 @@ export default function RatingModal({ game, closeModal, onReviewSubmit }) {
                   handleRatingChange("nota_arbitragem", value)
                 }
                 icon={WhistleIcon}
+                colorClass="text-red-500"
               />
             </div>
             <div>
@@ -203,11 +210,11 @@ export default function RatingModal({ game, closeModal, onReviewSubmit }) {
                   handleRatingChange("nota_atmosfera", value)
                 }
                 icon={Drum}
+                colorClass="text-yellow-300"
               />
             </div>
           </div>
 
-          {/* O resto do modal (seleção de jogadores e botão de submit) permanece o mesmo */}
           <div>
             <label className="block text-sm font-semibold mb-2">
               Jogadores da Partida
