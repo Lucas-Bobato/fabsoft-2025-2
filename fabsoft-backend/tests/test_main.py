@@ -4,7 +4,7 @@ from app import schemas
 def test_read_root(client: TestClient):
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {"message": "Bem-vindo à API SlamTalk v1.0!"}
+    assert response.json() == {"message": "Bem-vindo à API SlamTalk 0.2.0!"}
 
 def test_create_user(client: TestClient):
     response = client.post(

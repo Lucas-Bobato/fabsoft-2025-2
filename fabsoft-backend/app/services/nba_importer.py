@@ -1,3 +1,4 @@
+from typing import Optional
 from sqlalchemy.orm import Session
 from nba_api.stats.static import teams
 from nba_api.stats.endpoints import commonallplayers, leaguegamefinder, boxscoresummaryv2, boxscoretraditionalv2, commonplayerinfo, playerawards, teamdetails
@@ -7,6 +8,26 @@ from zoneinfo import ZoneInfo
 from .. import crud, schemas, models
 import math
 import time
+import re
+
+def _convert_height_to_cm(height_str: str) -> Optional[int]:
+    if not height_str or '-' not in height_str:
+        return None
+    try:
+        feet, inches = map(int, height_str.split('-'))
+        total_inches = (feet * 12) + inches
+        return round(total_inches * 2.54)
+    except (ValueError, TypeError):
+        return None
+
+def _convert_weight_to_kg(weight_lbs: str) -> Optional[float]:
+    if not weight_lbs:
+        return None
+    try:
+        return round(int(weight_lbs) * 0.453592, 1)
+    except (ValueError, TypeError):
+        return None
+    
 
 def sync_nba_players(db: Session):
     print("Iniciando a sincronização de jogadores da NBA em lotes...")
@@ -27,7 +48,7 @@ def sync_nba_players(db: Session):
     jogadores_adicionados = 0
     jogadores_atualizados = 0
     total_jogadores = len(player_data)
-    LOTE_TAMANHO = 500
+    LOTE_TAMANHO = 600
     PAUSA_MINUTOS = 1
 
     for i, player_summary in player_data.iterrows():
@@ -40,7 +61,7 @@ def sync_nba_players(db: Session):
         db_jogador = crud.get_jogador_by_api_id(db, api_id=player_summary['PERSON_ID'])
         
         try:
-            time.sleep(1.1) # Mantemos a pequena pausa entre cada jogador
+            time.sleep(1.1)
             
             player_info_df = None
             for attempt in range(max_retries):
@@ -74,7 +95,11 @@ def sync_nba_players(db: Session):
             posicao = details.get('POSITION')
             numero_camisa_str = details.get('JERSEY')
             numero_camisa = int(numero_camisa_str) if numero_camisa_str and numero_camisa_str.isdigit() else None
-            
+            altura_cm = _convert_height_to_cm(details.get('HEIGHT'))
+            peso_kg = _convert_weight_to_kg(details.get('WEIGHT'))
+            nacionalidade = details.get('COUNTRY')
+            # ---------------------------------
+
             if not db_jogador:
                 time_local = crud.get_time_by_api_id(db, api_id=player_summary['TEAM_ID'])
                 if time_local:
@@ -90,7 +115,10 @@ def sync_nba_players(db: Session):
                         numero_camisa=numero_camisa,
                         data_nascimento=data_nascimento,
                         ano_draft=ano_draft,
-                        anos_experiencia=anos_experiencia
+                        anos_experiencia=anos_experiencia,
+                        altura=altura_cm,
+                        peso=peso_kg,
+                        nacionalidade=nacionalidade
                     ))
                     jogadores_adicionados += 1
             else:
@@ -102,7 +130,10 @@ def sync_nba_players(db: Session):
                     numero_camisa=numero_camisa,
                     data_nascimento=data_nascimento,
                     ano_draft=ano_draft,
-                    anos_experiencia=anos_experiencia
+                    anos_experiencia=anos_experiencia,
+                    altura=altura_cm,
+                    peso=peso_kg,
+                    nacionalidade=nacionalidade
                 )
                 jogadores_atualizados += 1
 
@@ -158,7 +189,6 @@ def sync_nba_games(db: Session, season: str):
         db_jogo = crud.get_jogo_by_api_id(db, api_id=int(game_id))
         
         if not db_jogo:
-            # Lógica para criar um novo jogo (continua igual)
             game_rows = games_df[games_df['GAME_ID'] == game_id]
             if len(game_rows) < 2:
                 continue
@@ -443,3 +473,4 @@ def sync_all_teams_championships(db: Session):
 
     print(f"\nSincronização de todos os títulos concluída. Total de títulos sincronizados nesta execução: {total_titulos_adicionados}")
     return {"total_titulos_sincronizados": total_titulos_adicionados}
+

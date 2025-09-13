@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, Enum, Float, ForeignKey, JSON, UniqueConstraint, Boolean
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from .database import Base
 import enum
@@ -28,6 +29,7 @@ class Time(Base):
     id = Column(Integer, primary_key=True, index=True)
     api_id = Column(Integer, unique=True, index=True, nullable=True)
     nome = Column(String, unique=True, index=True, nullable=False)
+    slug = Column(String, unique=True, index=True, nullable=True)
     sigla = Column(String, unique=True, nullable=False)
     cidade = Column(String)
     logo_url = Column(String)
@@ -59,13 +61,14 @@ class Jogador(Base):
     id = Column(Integer, primary_key=True, index=True)
     api_id = Column(Integer, unique=True, index=True, nullable=True)
     nome = Column(String, nullable=False)
+    slug = Column(String, unique=True, index=True, nullable=True)
     numero_camisa = Column(Integer)
     posicao = Column(String)
     data_nascimento = Column(DateTime)
     ano_draft = Column(Integer)
     anos_experiencia = Column(Integer)
     altura = Column(Integer)
-    peso = Column(Integer)
+    peso = Column(Float)
     nacionalidade = Column(String)
     foto_url = Column(String)
     status = Column(String, default="ativo")
@@ -75,6 +78,7 @@ class Jogador(Base):
 class Jogo(Base):
     __tablename__ = "jogos"
     id = Column(Integer, primary_key=True, index=True)
+    slug = Column(String, unique=True, index=True, nullable=True)
     api_id = Column(Integer, unique=True, index=True, nullable=True)
     data_jogo = Column(DateTime(timezone=True), nullable=False)
     temporada = Column(String)
