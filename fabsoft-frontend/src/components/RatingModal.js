@@ -210,7 +210,7 @@ export default function RatingModal({ game, closeModal, onReviewSubmit }) {
                   handleRatingChange("nota_atmosfera", value)
                 }
                 icon={Drum}
-                colorClass="text-yellow-300"
+                colorClass="text-orange-400"
               />
             </div>
           </div>

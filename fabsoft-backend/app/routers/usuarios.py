@@ -10,6 +10,8 @@ from ..dependencies import get_db
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="usuarios/login")
 
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="usuarios/login", auto_error=False)
+
 router = APIRouter(
     prefix="/usuarios",
     tags=["Usuários"]
@@ -33,6 +35,25 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = crud.get_user_by_email(db, email=token_data.email)
     if user is None:
         raise credentials_exception
+    return user
+
+def try_get_current_user(token: str = Depends(oauth2_scheme_optional), db: Session = Depends(get_db)):
+    """
+    Tenta obter o usuário atual a partir do token.
+    Retorna None se o token for inválido ou não fornecido, sem lançar um erro.
+    """
+    if token is None:
+        return None
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            return None
+        token_data = schemas.TokenData(email=email)
+    except JWTError:
+        return None  # Retorna None se o token for inválido/expirado
+    
+    user = crud.get_user_by_email(db, email=token_data.email)
     return user
 
 @router.post("/", response_model=schemas.Usuario)

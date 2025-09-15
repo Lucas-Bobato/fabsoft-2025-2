@@ -106,7 +106,7 @@ export default function CadastroPage() {
 
         {step === 2 && (
             <div>
-                <TeamSelector 
+                <TeamSelector
                     onConfirm={handleFinalSubmit}
                     initialSelectedTeamId={formData.time_favorito_id}
                 />
