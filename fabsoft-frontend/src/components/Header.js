@@ -75,7 +75,7 @@ return (
               {menuOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-[#133B5C] border border-gray-700 rounded-lg shadow-lg py-1">
                   <Link
-                    href="/perfil"
+                    href={`/perfil/${user.username}`}
                     onClick={() => setMenuOpen(false)}
                     className="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700/50"
                   >

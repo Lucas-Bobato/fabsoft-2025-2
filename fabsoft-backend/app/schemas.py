@@ -402,3 +402,31 @@ class JogoEstatisticasGerais(BaseModel):
     media_atmosfera: float = 0.0
     mvp_mais_votado: JogadorMaisVotado
     decepcao_mais_votada: JogadorMaisVotado
+    
+class AvaliacaoJogoSimple(BaseModel):
+    id: int
+    jogo: Jogo
+    nota_geral: float
+    resenha: Optional[str] = None
+    data_avaliacao: datetime
+    model_config = {"from_attributes": True}
+
+class UsuarioProfile(Usuario):
+    total_avaliacoes: int
+    total_seguidores: int
+    total_seguindo: int
+    avaliacoes_recentes: List[AvaliacaoJogoSimple] = []
+    conquistas_desbloqueadas: List[UsuarioConquista] = []
+    
+class UsuarioUpdate(BaseModel):
+    nome_completo: Optional[str] = None
+    bio: Optional[str] = None
+    time_favorito_id: Optional[int] = None
+
+class UsuarioSocialInfo(UsuarioSimple):
+    is_followed_by_current_user: bool = False
+    
+class UserStats(BaseModel):
+    total_avaliacoes: int
+    media_geral: float
+    distribuicao_notas: dict[int, int]

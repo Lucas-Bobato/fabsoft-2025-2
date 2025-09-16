@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from typing import List, Dict
 import asyncio
 from nba_api.stats.endpoints import boxscoretraditionalv2, playbyplayv2, boxscoresummaryv2
-from .. import crud, schemas
+from .. import crud, schemas, models
 from ..dependencies import get_db
 from ..websocket_manager import manager
+from ..routers.usuarios import get_current_user
 
 router = APIRouter(prefix="/jogos", tags=["Jogos"])
 
@@ -172,3 +173,27 @@ def read_jogo_estatisticas_gerais(jogo_id: int, db: Session = Depends(get_db)):
     if stats is None:
         raise HTTPException(status_code=404, detail="Estatísticas não encontradas para este jogo")
     return stats
+
+@router.post(
+    "/{jogo_id}/avaliacoes/",
+    response_model=schemas.AvaliacaoJogo,
+    summary="Criar uma nova avaliação para um jogo",
+    description="Permite que um utilizador autenticado envie uma nova avaliação para um jogo específico."
+)
+def create_avaliacao_for_jogo(
+    jogo_id: int,
+    avaliacao: schemas.AvaliacaoJogoCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    db_avaliacao_existente = db.query(models.Avaliacao_Jogo).filter(
+        models.Avaliacao_Jogo.jogo_id == jogo_id,
+        models.Avaliacao_Jogo.usuario_id == current_user.id
+    ).first()
+    if db_avaliacao_existente:
+        raise HTTPException(
+            status_code=400,
+            detail="Você já avaliou este jogo."
+        )
+
+    return crud.create_avaliacao_jogo(db=db, avaliacao=avaliacao, usuario_id=current_user.id, jogo_id=jogo_id)

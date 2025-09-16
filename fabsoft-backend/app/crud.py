@@ -45,6 +45,26 @@ def authenticate_user(db: Session, email: str, password: str):
         return None
     return user
 
+def get_user_profile_by_username(db: Session, username: str):
+    db_user = get_user_by_username(db, username=username)
+    if not db_user:
+        return None
+
+    # 1. Valida o usuário base e converte para um dicionário
+    user_data = schemas.Usuario.model_validate(db_user).model_dump()
+
+    # 2. Calcula e adiciona os campos extras ao dicionário
+    user_data['total_avaliacoes'] = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.usuario_id == db_user.id).count()
+    user_data['total_seguidores'] = db.query(models.Seguidor).filter(models.Seguidor.seguido_id == db_user.id).count()
+    user_data['total_seguindo'] = db.query(models.Seguidor).filter(models.Seguidor.seguidor_id == db_user.id).count()
+    user_data['avaliacoes_recentes'] = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.usuario_id == db_user.id).order_by(models.Avaliacao_Jogo.data_avaliacao.desc()).limit(10).all()
+    user_data['conquistas_desbloqueadas'] = get_conquistas_por_usuario(db, user_id=db_user.id)
+
+    # 3. Valida o dicionário completo com todos os dados contra o schema do perfil
+    profile_data = schemas.UsuarioProfile.model_validate(user_data)
+
+    return profile_data
+
 # --- Funções CRUD para Liga ---
 
 def create_liga(db: Session, liga: schemas.LigaCreate):
@@ -231,10 +251,51 @@ def get_jogador_details(db: Session, jogador_slug: str):
         data_nasc = db_jogador.data_nascimento.date() if isinstance(db_jogador.data_nascimento, datetime) else db_jogador.data_nascimento
         idade = hoje.year - data_nasc.year - ((hoje.month, hoje.day) < (data_nasc.month, data_nasc.day))
 
-    conquistas = db.query(models.Conquista_Jogador).filter(models.Conquista_Jogador.jogador_id == db_jogador.id).all()
+    # Lógica de agrupamento de prêmios
+    conquistas_query = db.query(models.Conquista_Jogador).filter(models.Conquista_Jogador.jogador_id == db_jogador.id).all()
+    
+    premios_agrupados = {}
+    outros_premios = []
+
+    for conquista in conquistas_query:
+        nome = conquista.nome_conquista
+        if "Player of the Week" in nome:
+            tipo_premio = "Player of the Week"
+            if tipo_premio not in premios_agrupados:
+                premios_agrupados[tipo_premio] = 0
+            premios_agrupados[tipo_premio] += 1
+        elif "Player of the Month" in nome:
+            tipo_premio = "Player of the Month"
+            if tipo_premio not in premios_agrupados:
+                premios_agrupados[tipo_premio] = 0
+            premios_agrupados[tipo_premio] += 1
+        elif "All-Star" in nome:
+            tipo_premio = "All-Star"
+            if tipo_premio not in premios_agrupados:
+                premios_agrupados[tipo_premio] = 0
+            premios_agrupados[tipo_premio] += 1
+        elif "All-NBA" in nome:
+            tipo_premio = "All-NBA Team"
+            if tipo_premio not in premios_agrupados:
+                premios_agrupados[tipo_premio] = 0
+            premios_agrupados[tipo_premio] += 1
+        else:
+            outros_premios.append(conquista)
+
+    conquistas_finais = []
+    for nome, vezes in premios_agrupados.items():
+        # Criamos um objeto com o nome do prêmio formatado e sem temporada
+        conquistas_finais.append(schemas.ConquistaJogador(
+            nome_conquista=f"{vezes}x {nome}",
+            temporada=""
+        ))
+
+    # Adicionamos os outros prêmios que não foram agrupados
+    conquistas_finais.extend(outros_premios)
+    
     stats_por_temporada = get_jogador_stats_por_temporada(db, jogador_id=db_jogador.id)
     jogador_schema.idade = idade
-    jogador_schema.conquistas = conquistas
+    jogador_schema.conquistas = conquistas_finais
     jogador_schema.stats_por_temporada = stats_por_temporada
     
     return jogador_schema
@@ -965,3 +1026,64 @@ def get_estatisticas_gerais_jogo(db: Session, jogo_id: int):
         mvp_mais_votado=mvp_info,
         decepcao_mais_votada=decepcao_info
     )
+    
+def update_user(db: Session, user_id: int, user_data: schemas.UsuarioUpdate):
+    db_user = db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
+    if not db_user:
+        return None
+    
+    update_data = user_data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_user, key, value)
+        
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+def get_user_followers(db: Session, user_id: int, current_user_id: Optional[int] = None):
+    followers_query = db.query(models.Usuario).join(models.Seguidor, models.Usuario.id == models.Seguidor.seguidor_id).filter(models.Seguidor.seguido_id == user_id).all()
+    if not current_user_id:
+        return [schemas.UsuarioSocialInfo.model_validate(user) for user in followers_query]
+    
+    following_by_current_user = {f.seguido_id for f in db.query(models.Seguidor).filter(models.Seguidor.seguidor_id == current_user_id).all()}
+    
+    result = []
+    for user in followers_query:
+        user_info = schemas.UsuarioSocialInfo.model_validate(user)
+        user_info.is_followed_by_current_user = user.id in following_by_current_user
+        result.append(user_info)
+        
+    return result
+
+def get_user_following(db: Session, user_id: int, current_user_id: Optional[int] = None):
+    following_query = db.query(models.Usuario).join(models.Seguidor, models.Usuario.id == models.Seguidor.seguido_id).filter(models.Seguidor.seguidor_id == user_id).all()
+    if not current_user_id:
+        return [schemas.UsuarioSocialInfo.model_validate(user) for user in following_query]
+
+    following_by_current_user = {f.seguido_id for f in db.query(models.Seguidor).filter(models.Seguidor.seguidor_id == current_user_id).all()}
+
+    result = []
+    for user in following_query:
+        user_info = schemas.UsuarioSocialInfo.model_validate(user)
+        user_info.is_followed_by_current_user = user.id in following_by_current_user
+        result.append(user_info)
+        
+    return result
+
+def get_user_stats(db: Session, user_id: int):
+    avaliacoes = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.usuario_id == user_id).all()
+
+    total_avaliacoes = len(avaliacoes)
+    if total_avaliacoes == 0:
+        return schemas.UserStats(total_avaliacoes=0, media_geral=0.0, distribuicao_notas={i: 0 for i in range(1, 6)})
+
+    soma_notas = sum(a.nota_geral for a in avaliacoes)
+    media_geral = round(soma_notas / total_avaliacoes, 2)
+
+    distribuicao = {i: 0 for i in range(1, 6)}
+    for a in avaliacoes:
+        nota_arredondada = int(round(a.nota_geral))
+        if 1 <= nota_arredondada <= 5:
+            distribuicao[nota_arredondada] += 1
+            
+    return schemas.UserStats(total_avaliacoes=total_avaliacoes, media_geral=media_geral, distribuicao_notas=distribuicao)

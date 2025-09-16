@@ -51,7 +51,6 @@ const PlayerHighlightCard = ({ player, votes, type }) => {
         <h4 className="font-bold">{isMvp ? "Destaque (MVP)" : "Decepção"}</h4>
       </div>
 
-      {/* --- ATUALIZAÇÃO AQUI --- */}
       <Link
         href={`/jogadores/${player.slug}`}
         className="relative inline-block"
@@ -69,7 +68,7 @@ const PlayerHighlightCard = ({ player, votes, type }) => {
             alt={player.time_atual.nome}
             width={32}
             height={32}
-            className="w-8 h-8 rounded-full absolute -bottom-1 -right-1 border-2 border-gray-800"
+            className="w-8 h-8 rounded-full absolute -bottom-1 -right-1"
           />
         )}
       </Link>

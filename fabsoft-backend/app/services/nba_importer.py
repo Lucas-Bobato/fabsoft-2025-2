@@ -194,30 +194,20 @@ def sync_nba_games(db: Session, season: str):
                 continue
             
             row1, row2 = game_rows.iloc[0], game_rows.iloc[1]
-            matchup = row1.get('MATCHUP', '')
-            teams_in_matchup = matchup.replace(' vs. ', ' @ ').split(' @ ')
             
-            if len(teams_in_matchup) < 2:
-                print(f"Não foi possível processar o matchup '{matchup}' para o jogo ID {game_id}")
-                continue
-
-            away_team_abbr = teams_in_matchup[0]
-            home_team_abbr = teams_in_matchup[1]
-
-            if row1.get('TEAM_ABBREVIATION') == home_team_abbr:
-                home_row = row1
-                away_row = row2
-            else:
-                home_row = row2
-                away_row = row1
-
+            # --- LÓGICA DE IDENTIFICAÇÃO DE TIMES MELHORADA ---
+            home_row, away_row = (row1, row2) if '@' in row1.get('MATCHUP', '') else (row2, row1)
+            
             time_casa_local = crud.get_time_by_api_id(db, api_id=home_row['TEAM_ID'])
             time_visitante_local = crud.get_time_by_api_id(db, api_id=away_row['TEAM_ID'])
 
             if time_casa_local and time_visitante_local:
+                game_date_naive = datetime.strptime(home_row['GAME_DATE'], '%Y-%m-%d')
+                game_date_aware = datetime.combine(game_date_naive, datetime.min.time(), tzinfo=timezone.utc)
+                
                 db_jogo = crud.create_jogo(db, jogo=schemas.JogoCreate(
                     api_id=int(game_id),
-                    data_jogo=datetime.strptime(home_row['GAME_DATE'], '%Y-%m-%d'),
+                    data_jogo=game_date_aware,
                     temporada=season,
                     liga_id=liga_nba_id,
                     time_casa_id=time_casa_local.id,
@@ -225,7 +215,7 @@ def sync_nba_games(db: Session, season: str):
                 ))
                 jogos_adicionados += 1
 
-        if db_jogo and db_jogo.data_jogo < datetime.now() and db_jogo.placar_casa == 0:
+        if db_jogo and db_jogo.data_jogo < datetime.now(timezone.utc) and db_jogo.placar_casa == 0:
             try:
                 print(f"Buscando detalhes do jogo finalizado ID: {game_id}")
                 time.sleep(0.6)

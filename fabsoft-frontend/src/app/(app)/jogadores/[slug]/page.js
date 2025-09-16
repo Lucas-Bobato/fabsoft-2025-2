@@ -28,7 +28,7 @@ const PlayerProfilePage = () => {
         if (playerData.stats_por_temporada.length > 0) {
           const latestSeason = playerData.stats_por_temporada[0].temporada;
           const gameLogRes = await api.get(
-            `/jogadores/${playerData.id}/gamelog/${latestSeason}`
+            `/jogadores/${playerData.slug}/gamelog/${latestSeason}`
           );
           setGameLog(gameLogRes.data);
         }
@@ -149,7 +149,7 @@ const PlayerProfilePage = () => {
                   <ul className="text-white space-y-2">
                     {player.conquistas.map((c, i) => (
                       <li key={i}>
-                        - {c.nome_conquista} ({c.temporada})
+                        - {c.nome_conquista} {c.temporada && `(${c.temporada})`}
                       </li>
                     ))}
                   </ul>
