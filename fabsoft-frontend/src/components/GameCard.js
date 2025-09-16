@@ -29,6 +29,10 @@ export default function GameCard({ gameData }) {
     media_geral,
   } = gameData;
 
+    if (!time_casa || !time_visitante) {
+      return null;
+    }
+
   const averageRating = media_geral || 0;
   const ratingColor =
     averageRating > 8.5

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from sqlalchemy import func, desc
 from datetime import datetime, timedelta, date
 from typing import List, Optional, Union
 from . import models, schemas, security
@@ -10,10 +10,14 @@ def get_user(db: Session, user_id: int):
     return db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
 
 def get_user_by_email(db: Session, email: str):
-    return db.query(models.Usuario).filter(models.Usuario.email == email).first()
+    return db.query(models.Usuario).options(
+        joinedload(models.Usuario.time_favorito)
+    ).filter(models.Usuario.email == email).first()
 
 def get_user_by_username(db: Session, username: str):
-    return db.query(models.Usuario).filter(models.Usuario.username == username).first()
+    return db.query(models.Usuario).options(
+        joinedload(models.Usuario.time_favorito)
+    ).filter(models.Usuario.username == username).first()
 
 def get_users(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Usuario).offset(skip).limit(limit).all()
@@ -111,6 +115,14 @@ def get_recent_games_for_time(db: Session, time_id: int, limit: int = 10):
     ).order_by(models.Jogo.data_jogo.desc()).limit(limit).all()
 
 # --- Funções CRUD para Jogador ---
+
+def get_jogador(db: Session, jogador_id: int):
+    """Busca um jogador pelo seu ID primário no banco de dados."""
+    if not jogador_id:
+        return None
+    return db.query(models.Jogador).options(
+        joinedload(models.Jogador.time_atual)
+    ).filter(models.Jogador.id == jogador_id).first()
 
 def get_jogador_by_api_id(db: Session, api_id: int):
     """Busca um jogador pelo ID da API externa."""
@@ -316,14 +328,34 @@ def create_avaliacao_jogo(db: Session, avaliacao: schemas.AvaliacaoJogoCreate, u
     db.add(db_avaliacao)
     db.commit()
     db.refresh(db_avaliacao)
+    
+    check_conquistas_para_usuario(db, usuario_id=usuario_id)
+
     return db_avaliacao
 
 def get_avaliacao(db: Session, avaliacao_id: int):
     """Busca uma única avaliação pelo seu ID."""
     return db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.id == avaliacao_id).first()
 
-def get_avaliacoes_por_jogo(db: Session, jogo_id: int, skip: int = 0, limit: int = 100):
-    return db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.jogo_id == jogo_id).offset(skip).limit(limit).all()
+def get_avaliacoes_por_jogo(db: Session, jogo_id: int, usuario_id_logado: Optional[int] = None, skip: int = 0, limit: int = 100):
+    db_avaliacoes = db.query(models.Avaliacao_Jogo).options(
+        joinedload(models.Avaliacao_Jogo.usuario)
+    ).filter(models.Avaliacao_Jogo.jogo_id == jogo_id).order_by(models.Avaliacao_Jogo.data_avaliacao.desc()).offset(skip).limit(limit).all()
+    
+    ids_curtidos = set()
+    if usuario_id_logado:
+        curtidas_usuario = db.query(models.Curtida_Avaliacao.avaliacao_id).filter(
+            models.Curtida_Avaliacao.usuario_id == usuario_id_logado
+        ).all()
+        ids_curtidos = {c.avaliacao_id for c in curtidas_usuario}
+
+    avaliacoes_finais = []
+    for avaliacao in db_avaliacoes:
+        avaliacao_schema = schemas.AvaliacaoJogo.model_validate(avaliacao)
+        avaliacao_schema.curtido_pelo_usuario_atual = avaliacao.id in ids_curtidos
+        avaliacoes_finais.append(avaliacao_schema)
+            
+    return avaliacoes_finais
 
 # --- Funções CRUD para Estatistica_Jogador_Jogo ---
 
@@ -369,7 +401,6 @@ def create_avaliacao_jogo(db: Session, avaliacao: schemas.AvaliacaoJogoCreate, u
     return db_avaliacao
 
 def follow_user(db: Session, seguidor_id: int, seguido_id: int):
-    # Previne que um usuário siga a si mesmo
     if seguidor_id == seguido_id:
         return None
     db_follow = db.query(models.Seguidor).filter(
@@ -385,6 +416,7 @@ def follow_user(db: Session, seguidor_id: int, seguido_id: int):
     db.refresh(db_follow)
     
     check_conquistas_para_usuario(db, usuario_id=seguidor_id)
+    check_conquistas_para_usuario(db, usuario_id=seguido_id)
     
     return db_follow
 
@@ -438,22 +470,29 @@ def get_comentarios_por_avaliacao(db: Session, avaliacao_id: int, skip: int = 0,
     return db.query(models.Comentario_Avaliacao).filter(models.Comentario_Avaliacao.avaliacao_id == avaliacao_id).offset(skip).limit(limit).all()
 
 def like_avaliacao(db: Session, usuario_id: int, avaliacao_id: int):
-    # Verifica se a curtida já existe
+    # 1. Verifica se a curtida já existe (correto)
     db_like = db.query(models.Curtida_Avaliacao).filter(
         models.Curtida_Avaliacao.usuario_id == usuario_id,
         models.Curtida_Avaliacao.avaliacao_id == avaliacao_id
     ).first()
     if db_like:
-        return None # Já curtiu, não faz nada
-    
-    # Adiciona a curtida
+        return None
+
+    # 2. Adiciona a nova curtida e faz o commit inicial
     db_like = models.Curtida_Avaliacao(usuario_id=usuario_id, avaliacao_id=avaliacao_id)
     db.add(db_like)
-    
+    db.commit()
+
+    # 3. Busca a avaliação e atualiza o contador com o valor real do banco
     avaliacao = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.id == avaliacao_id).first()
     if avaliacao:
-        avaliacao.curtidas += 1
-        # 1. Notifica o autor da avaliação (se não for ele mesmo)
+        total_curtidas = db.query(func.count(models.Curtida_Avaliacao.id)).filter(
+            models.Curtida_Avaliacao.avaliacao_id == avaliacao_id
+        ).scalar()
+        
+        avaliacao.curtidas = total_curtidas
+
+        # 4. Notificações e Feed (correto)
         if avaliacao.usuario_id != usuario_id:
             usuario_que_curtiu = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
             create_notificacao(
@@ -464,7 +503,6 @@ def like_avaliacao(db: Session, usuario_id: int, avaliacao_id: int):
                 ref_id=avaliacao.id,
                 ref_tipo="avaliacao"
             )
-        # 2. Adiciona ao feed de atividades
         create_feed_item(
             db=db,
             usuario_id=usuario_id,
@@ -472,26 +510,33 @@ def like_avaliacao(db: Session, usuario_id: int, avaliacao_id: int):
             ref_id=avaliacao.id,
             ref_tipo="avaliacao"
         )
-
-    db.commit()
-    
-    # Retorna o novo total de curtidas
-    total_curtidas = db.query(func.count(models.Curtida_Avaliacao.id)).filter(models.Curtida_Avaliacao.avaliacao_id == avaliacao_id).scalar()
-    return total_curtidas
+        
+        check_conquistas_para_usuario(db, usuario_id=avaliacao.usuario_id)
+        
+        db.commit()
+        return total_curtidas
+        
+    return 0
 
 def unlike_avaliacao(db: Session, usuario_id: int, avaliacao_id: int):
     db_like = db.query(models.Curtida_Avaliacao).filter(
         models.Curtida_Avaliacao.usuario_id == usuario_id,
         models.Curtida_Avaliacao.avaliacao_id == avaliacao_id
     ).first()
+
     if db_like:
         db.delete(db_like)
-        db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.id == avaliacao_id).update(
-            {"curtidas": models.Avaliacao_Jogo.curtidas - 1}
-        )
         db.commit()
-        total_curtidas = db.query(func.count(models.Curtida_Avaliacao.id)).filter(models.Curtida_Avaliacao.avaliacao_id == avaliacao_id).scalar()
-        return total_curtidas
+        
+        avaliacao = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.id == avaliacao_id).first()
+        if avaliacao:
+            total_curtidas = db.query(func.count(models.Curtida_Avaliacao.id)).filter(
+                models.Curtida_Avaliacao.avaliacao_id == avaliacao_id
+            ).scalar()
+            avaliacao.curtidas = total_curtidas
+            db.commit()
+            return total_curtidas
+            
     return None
 
 # --- Funções para Notificações e Feed ---
@@ -585,17 +630,30 @@ def get_upcoming_games(db: Session, limit: int = 5):
 
 def get_trending_games(db: Session, limit: int = 3):
     """
-    Busca os jogos mais avaliados nos últimos 7 dias.
+    Busca os jogos mais avaliados, incluindo o total de avaliações e a média das notas.
     """
-    uma_semana_atras = datetime.now() - timedelta(days=7)
-    
-    return db.query(models.Jogo, func.count(models.Avaliacao_Jogo.id).label('total_avaliacoes'))\
+    results = db.query(
+            models.Jogo,
+            func.count(models.Avaliacao_Jogo.id).label('total_avaliacoes'),
+            func.avg(models.Avaliacao_Jogo.nota_geral).label('media_geral')
+        )\
         .join(models.Avaliacao_Jogo, models.Jogo.id == models.Avaliacao_Jogo.jogo_id)\
-        .filter(models.Avaliacao_Jogo.data_avaliacao >= uma_semana_atras)\
         .group_by(models.Jogo.id)\
         .order_by(func.count(models.Avaliacao_Jogo.id).desc())\
         .limit(limit)\
         .all()
+    if not results:
+        return []
+    return [
+        {
+            "jogo": jogo,
+            "total_avaliacoes": total or 0,
+            "media_geral": float(media) if media is not None else 0.0
+        }
+        for jogo, total, media in results
+    ]
+    
+    return jogos_com_avaliacao
         
 def add_conquista_time(db: Session, time_id: int, nome_conquista: str, temporada: str):
     db_conquista = db.query(models.Conquista_Time).filter(
@@ -634,10 +692,31 @@ def get_time_details(db: Session, time_id: int):
 
 # Dicionário com as definições das nossas conquistas
 DEFINICOES_CONQUISTAS = {
+    # Conquistas Iniciais (Nível 1)
     1: {"nome": "Primeira Avaliação", "descricao": "Você fez sua primeira avaliação de um jogo!", "pontos": 10},
-    2: {"nome": "Crítico Ativo", "descricao": "Você já avaliou 10 jogos.", "pontos": 50},
     3: {"nome": "Comentarista", "descricao": "Deixou seu primeiro comentário em uma avaliação.", "pontos": 5},
     4: {"nome": "Social", "descricao": "Começou a seguir 5 usuários.", "pontos": 25},
+    7: {"nome": "Jogo da Temporada", "descricao": "Deu a nota máxima (5.0) para um jogo.", "pontos": 20},
+    5: {"nome": "Coração Valente", "descricao": "Avaliou uma partida do seu time do coração.", "pontos": 25},
+    11: {"nome": "Rivalidade Histórica", "descricao": "Avaliou um clássico da NBA (ex: Celtics vs Lakers).", "pontos": 40},
+
+    # Conquistas Intermediárias (Nível 2)
+    2: {"nome": "Crítico Ativo", "descricao": "Você já avaliou 10 jogos.", "pontos": 50},
+    12: {"nome": "Maratonista", "descricao": "Avaliou 5 jogos em uma única semana.", "pontos": 60},
+    6: {"nome": "Na Prorrogação", "descricao": "Avaliou um jogo que foi decidido na prorrogação (OT).", "pontos": 75},
+    8: {"nome": "Voz da Torcida", "descricao": "Recebeu 10 curtidas em uma de suas avaliações.", "pontos": 100},
+    
+    # Conquistas Avançadas (Nível 3)
+    10: {"nome": "Analista Tático", "descricao": "Avaliou 25 jogos, detalhando notas de ataque e defesa.", "pontos": 150},
+    9: {"nome": "Formador de Opinião", "descricao": "Foi seguido por 10 usuários.", "pontos": 150},
+    13: {"nome": "Crítico Experiente", "descricao": "Alcançou a marca de 50 avaliações de jogos.", "pontos": 200},
+    14: {"nome": "Ouro Puro", "descricao": "Sua avaliação recebeu 50 curtidas.", "pontos": 200},
+    15: {"nome": "Influenciador", "descricao": "Conquistou uma base de 25 seguidores.", "pontos": 250},
+
+    # Conquistas de Elite (Nível 4)
+    16: {"nome": "Lenda da Análise", "descricao": "Tornou-se uma referência com 100 avaliações.", "pontos": 400},
+    17: {"nome": "Especialista da Franquia", "descricao": "Avaliou 25 jogos do seu time do coração.", "pontos": 250},
+    18: {"nome": "Maratonista da NBA", "descricao": "Avaliou um jogo de cada uma das 30 equipes da liga.", "pontos": 500}
 }
 
 XP_PARA_NIVEL = {
@@ -715,24 +794,70 @@ def check_conquistas_para_usuario(db: Session, usuario_id: int):
     """
     Função "mestra" que verifica todas as condições de conquistas para um usuário.
     """
-    # Conquista 1: Primeira Avaliação
-    total_avaliacoes = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.usuario_id == usuario_id).count()
-    if total_avaliacoes >= 1:
-        grant_conquista_usuario(db, usuario_id, 1)
-    
-    # Conquista 2: Crítico Ativo (10 avaliações)
-    if total_avaliacoes >= 10:
-        grant_conquista_usuario(db, usuario_id, 2)
+    db_usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
+    if not db_usuario:
+        return
 
-    # Conquista 3: Primeiro Comentário
-    total_comentarios = db.query(models.Comentario_Avaliacao).filter(models.Comentario_Avaliacao.usuario_id == usuario_id).count()
-    if total_comentarios >= 1:
-        grant_conquista_usuario(db, usuario_id, 3)
+    # --- Conquistas baseadas em AVALIAÇÕES ---
+    avaliacoes = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.usuario_id == usuario_id).all()
+    total_avaliacoes = len(avaliacoes)
 
-    # Conquista 4: Social (seguir 5 pessoas)
+    if total_avaliacoes >= 1: grant_conquista_usuario(db, usuario_id, 1) # Primeira Avaliação
+    if total_avaliacoes >= 10: grant_conquista_usuario(db, usuario_id, 2) # Crítico Ativo
+    if total_avaliacoes >= 50: grant_conquista_usuario(db, usuario_id, 13) # Crítico Experiente
+    if total_avaliacoes >= 100: grant_conquista_usuario(db, usuario_id, 16) # Lenda da Análise
+
+    # --- Conquistas baseadas em COMENTÁRIOS ---
+    if db.query(models.Comentario_Avaliacao).filter(models.Comentario_Avaliacao.usuario_id == usuario_id).count() >= 1:
+        grant_conquista_usuario(db, usuario_id, 3) # Comentarista
+
+    # --- Conquistas baseadas em SEGUIR/SEGUIDORES ---
     total_seguindo = db.query(models.Seguidor).filter(models.Seguidor.seguidor_id == usuario_id).count()
-    if total_seguindo >= 5:
-        grant_conquista_usuario(db, usuario_id, 4)
+    total_seguidores = db.query(models.Seguidor).filter(models.Seguidor.seguido_id == usuario_id).count()
+
+    if total_seguindo >= 5: grant_conquista_usuario(db, usuario_id, 4) # Social
+    if total_seguidores >= 10: grant_conquista_usuario(db, usuario_id, 9) # Formador de Opinião
+    if total_seguidores >= 25: grant_conquista_usuario(db, usuario_id, 15) # Influenciador
+
+    # --- Lógicas mais complexas que iteram sobre as avaliações ---
+    avaliacoes_time_favorito = 0
+    avaliacoes_com_detalhes = 0
+    times_avaliados = set()
+
+    uma_semana_atras = datetime.now() - timedelta(days=7)
+    avaliacoes_na_semana = 0
+
+    for av in avaliacoes:
+        # Jogo da Temporada (Nota 5.0)
+        if av.nota_geral == 5.0: grant_conquista_usuario(db, usuario_id, 7)
+        # Na Prorrogação (OT)
+        if av.jogo.status_jogo and "OT" in av.jogo.status_jogo: grant_conquista_usuario(db, usuario_id, 6)
+        # Voz da Torcida (10 curtidas) e Ouro Puro (50 curtidas)
+        if (av.curtidas or 0) >= 10: grant_conquista_usuario(db, usuario_id, 8)
+        if (av.curtidas or 0) >= 50: grant_conquista_usuario(db, usuario_id, 14)
+
+        # Coração Valente e Especialista da Franquia
+        if db_usuario.time_favorito_id and (av.jogo.time_casa_id == db_usuario.time_favorito_id or av.jogo.time_visitante_id == db_usuario.time_favorito_id):
+            avaliacoes_time_favorito += 1
+        
+        # Analista Tático
+        if av.nota_ataque_casa is not None and av.nota_defesa_casa is not None:
+            avaliacoes_com_detalhes += 1
+
+        # Maratonista da NBA
+        times_avaliados.add(av.jogo.time_casa_id)
+        times_avaliados.add(av.jogo.time_visitante_id)
+
+        # Maratonista
+        if av.data_avaliacao.date() > uma_semana_atras.date():
+            avaliacoes_na_semana += 1
+
+    if avaliacoes_time_favorito >= 1: grant_conquista_usuario(db, usuario_id, 5)
+    if avaliacoes_time_favorito >= 25: grant_conquista_usuario(db, usuario_id, 17)
+    if avaliacoes_com_detalhes >= 25: grant_conquista_usuario(db, usuario_id, 10)
+    if len(times_avaliados) >= 30: grant_conquista_usuario(db, usuario_id, 18)
+    if avaliacoes_na_semana >= 5: grant_conquista_usuario(db, usuario_id, 12)
+
 
 def get_conquistas_por_usuario(db: Session, user_id: int):
     """Busca as conquistas que um usuário desbloqueou."""
@@ -785,3 +910,58 @@ def perform_advanced_search(
         resultados.extend(query_time.limit(10).all())
 
     return resultados
+
+def get_estatisticas_gerais_jogo(db: Session, jogo_id: int):
+    # Calcula as médias de todas as notas
+    medias = db.query(
+        func.avg(models.Avaliacao_Jogo.nota_geral).label("media_geral"),
+        func.avg(models.Avaliacao_Jogo.nota_ataque_casa).label("media_ataque_casa"),
+        func.avg(models.Avaliacao_Jogo.nota_defesa_casa).label("media_defesa_casa"),
+        func.avg(models.Avaliacao_Jogo.nota_ataque_visitante).label("media_ataque_visitante"),
+        func.avg(models.Avaliacao_Jogo.nota_defesa_visitante).label("media_defesa_visitante"),
+        func.avg(models.Avaliacao_Jogo.nota_arbitragem).label("media_arbitragem"),
+        func.avg(models.Avaliacao_Jogo.nota_atmosfera).label("media_atmosfera")
+    ).filter(models.Avaliacao_Jogo.jogo_id == jogo_id).first()
+
+    # Encontra o MVP mais votado
+    mvp_query = db.query(
+        models.Avaliacao_Jogo.melhor_jogador_id,
+        func.count(models.Avaliacao_Jogo.melhor_jogador_id).label("votos")
+    ).filter(
+        models.Avaliacao_Jogo.jogo_id == jogo_id,
+        models.Avaliacao_Jogo.melhor_jogador_id.isnot(None)
+    ).group_by(models.Avaliacao_Jogo.melhor_jogador_id).order_by(desc("votos")).first()
+
+    # Encontra a Decepção mais votada
+    decepcao_query = db.query(
+        models.Avaliacao_Jogo.pior_jogador_id,
+        func.count(models.Avaliacao_Jogo.pior_jogador_id).label("votos")
+    ).filter(
+        models.Avaliacao_Jogo.jogo_id == jogo_id,
+        models.Avaliacao_Jogo.pior_jogador_id.isnot(None)
+    ).group_by(models.Avaliacao_Jogo.pior_jogador_id).order_by(desc("votos")).first()
+
+    # Agora a chamada para get_jogador funcionará
+    mvp_jogador = get_jogador(db, mvp_query[0]) if mvp_query else None
+    decepcao_jogador = get_jogador(db, decepcao_query[0]) if decepcao_query else None
+
+    mvp_info = schemas.JogadorMaisVotado(
+        jogador=mvp_jogador,
+        votos=mvp_query[1] if mvp_query else 0
+    )
+    decepcao_info = schemas.JogadorMaisVotado(
+        jogador=decepcao_jogador,
+        votos=decepcao_query[1] if decepcao_query else 0
+    )
+
+    return schemas.JogoEstatisticasGerais(
+        media_geral=round(medias.media_geral or 0, 1),
+        media_ataque_casa=round(medias.media_ataque_casa or 0, 1),
+        media_defesa_casa=round(medias.media_defesa_casa or 0, 1),
+        media_ataque_visitante=round(medias.media_ataque_visitante or 0, 1),
+        media_defesa_visitante=round(medias.media_defesa_visitante or 0, 1),
+        media_arbitragem=round(medias.media_arbitragem or 0, 1),
+        media_atmosfera=round(medias.media_atmosfera or 0, 1),
+        mvp_mais_votado=mvp_info,
+        decepcao_mais_votada=decepcao_info
+    )

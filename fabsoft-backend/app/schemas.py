@@ -164,6 +164,7 @@ class Usuario(UsuarioBase):
     pontos_experiencia: int
     status: StatusUsuario
     foto_perfil: Optional[str] = None
+    time_favorito: Optional[TimeSimple] = None
     model_config = {"from_attributes": True}
     
 class UsuarioSimple(BaseModel):
@@ -200,6 +201,14 @@ class AvaliacaoJogo(AvaliacaoJogoBase):
     data_avaliacao: datetime
     curtidas: int
     usuario: UsuarioSimple
+    curtido_pelo_usuario_atual: bool = False
+    model_config = {"from_attributes": True}
+    
+class JogoComAvaliacao(BaseModel):
+    jogo: Jogo
+    total_avaliacoes: int
+    media_geral: Optional[float] = 0.0
+
     model_config = {"from_attributes": True}
     
 # --- Schemas para Estatistica_Jogador_Jogo ---
@@ -378,3 +387,18 @@ class SearchResult(RootModel[Union[Jogador, Jogo, Time]]):
 class SearchResponse(BaseModel):
     query: Optional[str] = None
     results: List[SearchResult]
+    
+class JogadorMaisVotado(BaseModel):
+    jogador: Optional[Jogador] = None
+    votos: int
+
+class JogoEstatisticasGerais(BaseModel):
+    media_geral: float = 0.0
+    media_ataque_casa: float = 0.0
+    media_defesa_casa: float = 0.0
+    media_ataque_visitante: float = 0.0
+    media_defesa_visitante: float = 0.0
+    media_arbitragem: float = 0.0
+    media_atmosfera: float = 0.0
+    mvp_mais_votado: JogadorMaisVotado
+    decepcao_mais_votada: JogadorMaisVotado

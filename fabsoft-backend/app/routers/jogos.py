@@ -9,6 +9,18 @@ from ..websocket_manager import manager
 
 router = APIRouter(prefix="/jogos", tags=["Jogos"])
 
+nba_api_headers = {
+    'Host': 'stats.nba.com',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Referer': 'https://www.nba.com/',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'x-nba-stats-origin': 'stats',
+    'x-nba-stats-token': 'true'
+}
+
 # Dicionários para manter as tarefas de fundo
 live_games_tasks: Dict[str, asyncio.Task] = {}
 
@@ -20,18 +32,21 @@ async def track_real_game(game_api_id: str):
     
     while True:
         try:
-            # 1. Buscar os dados principais do box score
-            boxscore = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_api_id, timeout=30)
+            boxscore = boxscoretraditionalv2.BoxScoreTraditionalV2(
+                game_id=game_api_id, timeout=30, headers=nba_api_headers
+            )
             player_stats_df = boxscore.player_stats.get_data_frame()
             team_stats_df = boxscore.team_stats.get_data_frame()
 
-            # 2. Buscar o estado do jogo (tempo, quarto)
-            summary = boxscoresummaryv2.BoxScoreSummaryV2(game_id=game_api_id, timeout=30)
+            summary = boxscoresummaryv2.BoxScoreSummaryV2(
+                game_id=game_api_id, timeout=30, headers=nba_api_headers
+            )
             line_score_df = summary.line_score.get_data_frame()
             game_info_df = summary.game_info.get_data_frame()
             
-            # 3. Buscar o play-by-play
-            pbp = playbyplayv2.PlayByPlayV2(game_id=game_api_id, timeout=30)
+            pbp = playbyplayv2.PlayByPlayV2(
+                game_id=game_api_id, timeout=30, headers=nba_api_headers
+            )
             pbp_df = pbp.play_by_play.get_data_frame()
 
             # 4. Processar e montar o nosso objeto de resposta
@@ -39,11 +54,11 @@ async def track_real_game(game_api_id: str):
             away_team_row = team_stats_df.iloc[1]
 
             home_players = [
-                schemas.LivePlayerStats(**player) 
+                schemas.LivePlayerStats(**player)
                 for player in player_stats_df[player_stats_df['TEAM_ID'] == home_team_row['TEAM_ID']].to_dict('records')
             ]
             away_players = [
-                schemas.LivePlayerStats(**player) 
+                schemas.LivePlayerStats(**player)
                 for player in player_stats_df[player_stats_df['TEAM_ID'] == away_team_row['TEAM_ID']].to_dict('records')
             ]
             
@@ -129,15 +144,12 @@ async def websocket_endpoint(
             if task:
                 task.cancel()
 
-@router.get("/trending", response_model=List[schemas.Jogo])
+@router.get("/trending", response_model=List[schemas.JogoComAvaliacao])
 def read_trending_games(db: Session = Depends(get_db)):
     """
     Retorna os jogos mais populares (mais avaliados) da última semana.
     """
-    # A nossa função do crud retorna uma lista de tuplas (Jogo, contagem).
-    # Precisamos extrair apenas o objeto Jogo para a resposta.
-    trending_results = crud.get_trending_games(db)
-    return [jogo for jogo, contagem in trending_results]
+    return crud.get_trending_games(db)
 
 @router.post("/", response_model=schemas.Jogo)
 def create_jogo(jogo: schemas.JogoCreate, db: Session = Depends(get_db)):
@@ -153,3 +165,10 @@ def read_jogo_by_slug(slug: str, db: Session = Depends(get_db)):
     if db_jogo is None:
         raise HTTPException(status_code=404, detail="Jogo não encontrado")
     return db_jogo
+
+@router.get("/{jogo_id}/estatisticas-gerais", response_model=schemas.JogoEstatisticasGerais)
+def read_jogo_estatisticas_gerais(jogo_id: int, db: Session = Depends(get_db)):
+    stats = crud.get_estatisticas_gerais_jogo(db, jogo_id=jogo_id)
+    if stats is None:
+        raise HTTPException(status_code=404, detail="Estatísticas não encontradas para este jogo")
+    return stats

@@ -1,29 +1,22 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from .. import crud, schemas
 from ..dependencies import get_db
-from ..routers.usuarios import get_current_user
+from ..routers.usuarios import try_get_current_user
 
 router = APIRouter(tags=["Avaliações e Estatísticas"])
-
-@router.post("/jogos/{jogo_id}/avaliacoes/", response_model=schemas.AvaliacaoJogo)
-def create_avaliacao_for_jogo(
-    jogo_id: int,
-    avaliacao: schemas.AvaliacaoJogoCreate,
-    db: Session = Depends(get_db),
-    current_user: schemas.Usuario = Depends(get_current_user) # Adiciona a dependência
-):
-    return crud.create_avaliacao_jogo(db=db, avaliacao=avaliacao, usuario_id=current_user.id, jogo_id=jogo_id)
 
 @router.get("/jogos/{jogo_id}/avaliacoes/", response_model=List[schemas.AvaliacaoJogo])
 def read_avaliacoes_for_jogo(
     jogo_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[schemas.Usuario] = Depends(try_get_current_user),
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db)
 ):
-    avaliacoes = crud.get_avaliacoes_por_jogo(db, jogo_id=jogo_id, skip=skip, limit=limit)
+    user_id = current_user.id if current_user else None
+    avaliacoes = crud.get_avaliacoes_por_jogo(db, jogo_id=jogo_id, usuario_id_logado=user_id, skip=skip, limit=limit)
     return avaliacoes
 
 # --- Endpoints para Estatísticas ---
