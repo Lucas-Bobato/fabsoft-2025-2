@@ -45,22 +45,28 @@ def authenticate_user(db: Session, email: str, password: str):
         return None
     return user
 
-def get_user_profile_by_username(db: Session, username: str):
+def get_user_profile_by_username(db: Session, username: str, start_date: Optional[date] = None, end_date: Optional[date] = None):
     db_user = get_user_by_username(db, username=username)
     if not db_user:
         return None
 
-    # 1. Valida o usuário base e converte para um dicionário
     user_data = schemas.Usuario.model_validate(db_user).model_dump()
 
-    # 2. Calcula e adiciona os campos extras ao dicionário
+    # Filtra avaliações recentes por data, se fornecido
+    recent_reviews_query = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.usuario_id == db_user.id)
+    if start_date:
+        recent_reviews_query = recent_reviews_query.filter(models.Avaliacao_Jogo.data_avaliacao >= start_date)
+    if end_date:
+        recent_reviews_query = recent_reviews_query.filter(models.Avaliacao_Jogo.data_avaliacao <= end_date)
+    
+    user_data['avaliacoes_recentes'] = recent_reviews_query.order_by(models.Avaliacao_Jogo.data_avaliacao.desc()).limit(10).all()
+
+    # O restante continua igual
     user_data['total_avaliacoes'] = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.usuario_id == db_user.id).count()
     user_data['total_seguidores'] = db.query(models.Seguidor).filter(models.Seguidor.seguido_id == db_user.id).count()
     user_data['total_seguindo'] = db.query(models.Seguidor).filter(models.Seguidor.seguidor_id == db_user.id).count()
-    user_data['avaliacoes_recentes'] = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.usuario_id == db_user.id).order_by(models.Avaliacao_Jogo.data_avaliacao.desc()).limit(10).all()
     user_data['conquistas_desbloqueadas'] = get_conquistas_por_usuario(db, user_id=db_user.id)
 
-    # 3. Valida o dicionário completo com todos os dados contra o schema do perfil
     profile_data = schemas.UsuarioProfile.model_validate(user_data)
 
     return profile_data
@@ -1070,8 +1076,18 @@ def get_user_following(db: Session, user_id: int, current_user_id: Optional[int]
         
     return result
 
-def get_user_stats(db: Session, user_id: int):
-    avaliacoes = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.usuario_id == user_id).all()
+def get_user_stats(db: Session, user_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None):
+    # Constrói a query base para avaliações
+    query = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.usuario_id == user_id)
+
+    # Aplica os filtros de data se eles forem fornecidos
+    if start_date:
+        query = query.filter(models.Avaliacao_Jogo.data_avaliacao >= start_date)
+    if end_date:
+        query = query.filter(models.Avaliacao_Jogo.data_avaliacao <= end_date)
+
+    # Executa a query filtrada
+    avaliacoes = query.all()
 
     total_avaliacoes = len(avaliacoes)
     if total_avaliacoes == 0:

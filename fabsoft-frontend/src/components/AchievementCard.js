@@ -1,6 +1,5 @@
 import React from "react";
 
-// 1. Recebemos a nova prop "themeColor"
 const AchievementCard = ({
   icon,
   title,
@@ -9,53 +8,47 @@ const AchievementCard = ({
   unlocked,
   themeColor,
 }) => {
-  // Classes para o card bloqueado (não mudam)
+  // Estilos para o card bloqueado
   const lockedClasses = "bg-slate-900/60 opacity-60 border border-slate-800";
 
-  // Classes base para o card desbloqueado
+  // Estilos para o card desbloqueado
   const unlockedClasses = "bg-slate-800/70";
 
-  // 2. Criamos um objeto de estilos SÓ para as conquistas desbloqueadas
-  // Usamos a cor do tema que recebemos via props
+  // Estilos de cor dinâmica aplicados inline para conquistas desbloqueadas
   const unlockedStyles = {
-    // A cor da borda e a sombra (o brilho) agora usam a cor do time
     borderColor: themeColor,
     boxShadow: `0 0 15px ${themeColor}40, 0 0 5px ${themeColor}99 inset`,
   };
 
-  const unlockedIconStyles = {
-    color: themeColor, // A cor do ícone
-  };
-
-  const unlockedXpStyles = {
-    color: themeColor, // A cor do XP
+  const unlockedIconContainerStyles = {
+    backgroundColor: themeColor,
+    color: "#1A2233", // Cor escura para o ícone
   };
 
   return (
     <div
-      className={`achievement-card p-5 rounded-2xl flex flex-col items-center text-center ${
+      className={`achievement-card p-5 rounded-2xl flex flex-col items-center text-center transition-all duration-300 ${
         unlocked ? unlockedClasses : lockedClasses
       }`}
-      // 3. Aplicamos os estilos de brilho apenas se a conquista estiver desbloqueada
       style={unlocked ? unlockedStyles : {}}
     >
       <div
-        className="mb-4"
-        // Aplicamos a cor no ícone
-        style={unlocked ? unlockedIconStyles : {}}
+        className={`w-20 h-20 rounded-full flex items-center justify-center mb-2 transition-colors duration-300 ${
+          unlocked ? "" : "bg-gray-700 text-gray-500"
+        }`}
+        style={unlocked ? unlockedIconContainerStyles : {}}
       >
         {icon}
       </div>
-
       <h4
-        className={`text-lg font-bold mb-1 ${
+        className={`text-base font-bold mb-1 ${
           unlocked ? "text-white" : "text-slate-400"
         }`}
       >
         {title}
       </h4>
       <p
-        className={`text-sm flex-grow ${
+        className={`text-xs flex-grow ${
           unlocked ? "text-gray-300" : "text-slate-500"
         }`}
       >
@@ -63,8 +56,7 @@ const AchievementCard = ({
       </p>
       <p
         className="font-bold mt-3 text-sm"
-        // Aplicamos a cor no texto de XP
-        style={unlocked ? unlockedXpStyles : {}}
+        style={unlocked ? { color: themeColor } : {}}
       >
         +{xp} XP
       </p>

@@ -8,20 +8,19 @@ import { useAuth } from "@/context/AuthContext";
 import AchievementCard from "@/components/AchievementCard";
 import FollowModal from "@/components/FollowModal";
 import EditProfileModal from "@/components/EditProfileModal";
-import ProfileStats from "@/components/ProfileStats"; // Importe o novo componente
 import { teamColors } from "@/utils/teamColors";
 import {
   Award,
   BarChart,
   Calendar,
   Clock,
+  Edit,
   FileText,
   Gem,
   Globe,
   Heart,
   Megaphone,
   MessageSquare,
-  Pencil,
   PencilLine,
   PlusCircle,
   Share2,
@@ -30,132 +29,150 @@ import {
   Swords,
   ThumbsUp,
   Users,
+  ClipboardList,
 } from "lucide-react";
 
-// (O objeto allAchievements continua o mesmo, pode mantê-lo)
+// Componente interno para a barra de distribuição de notas (agora vertical)
+const VerticalRatingBar = ({ rating, count, maxCount, color }) => {
+  const heightPercentage = maxCount > 0 ? (count / maxCount) * 100 : 0;
+  return (
+    <div className="flex flex-col items-center justify-end h-full">
+      <div className="text-xs font-bold text-white mb-1">{count}</div>
+      <div
+        className="w-4 rounded-t-md"
+        style={{ height: `${heightPercentage}%`, backgroundColor: color }}
+      ></div>
+      <div className="text-xs font-bold mt-1">
+        {rating} <Star size={10} className="inline-block -mt-1" />
+      </div>
+    </div>
+  );
+};
+
+// O objeto `allAchievements` continua o mesmo
 const allAchievements = {
   1: {
     id: 1,
-    icon: <PencilLine size={64} />,
+    icon: <PencilLine size={48} />,
     title: "Primeira Avaliação",
     description: "Você fez sua primeira avaliação de um jogo!",
     xp: 10,
   },
   3: {
     id: 3,
-    icon: <MessageSquare size={64} />,
+    icon: <MessageSquare size={48} />,
     title: "Comentarista",
     description: "Deixou seu primeiro comentário em uma avaliação.",
     xp: 5,
   },
   4: {
     id: 4,
-    icon: <Users size={64} />,
+    icon: <Users size={48} />,
     title: "Social",
     description: "Começou a seguir 5 usuários.",
     xp: 25,
   },
   7: {
     id: 7,
-    icon: <Star size={64} />,
+    icon: <Star size={48} />,
     title: "Jogo da Temporada",
     description: "Deu a nota máxima (5.0) para um jogo.",
     xp: 20,
   },
   5: {
     id: 5,
-    icon: <Heart size={64} />,
+    icon: <Heart size={48} />,
     title: "Coração Valente",
     description: "Avaliou uma partida do seu time do coração.",
     xp: 25,
   },
   11: {
     id: 11,
-    icon: <Swords size={64} />,
+    icon: <Swords size={48} />,
     title: "Rivalidade Histórica",
     description: "Avaliou um clássico da NBA.",
     xp: 40,
   },
   2: {
     id: 2,
-    icon: <PlusCircle size={64} />,
+    icon: <PlusCircle size={48} />,
     title: "Crítico Ativo",
     description: "Você já avaliou 10 jogos.",
     xp: 50,
   },
   12: {
     id: 12,
-    icon: <Calendar size={64} />,
+    icon: <Calendar size={48} />,
     title: "Maratonista",
     description: "Avaliou 5 jogos em uma única semana.",
     xp: 60,
   },
   6: {
     id: 6,
-    icon: <Clock size={64} />,
+    icon: <Clock size={48} />,
     title: "Na Prorrogação",
     description: "Avaliou um jogo que foi decidido na prorrogação.",
     xp: 75,
   },
   8: {
     id: 8,
-    icon: <ThumbsUp size={64} />,
+    icon: <ThumbsUp size={48} />,
     title: "Voz da Torcida",
     description: "Recebeu 10 curtidas em uma de suas avaliações.",
     xp: 100,
   },
   10: {
     id: 10,
-    icon: <BarChart size={64} />,
+    icon: <BarChart size={48} />,
     title: "Analista Tático",
     description: "Avaliou 25 jogos, detalhando notas de ataque e defesa.",
     xp: 150,
   },
   9: {
     id: 9,
-    icon: <Award size={64} />,
+    icon: <Award size={48} />,
     title: "Formador de Opinião",
     description: "Foi seguido por 10 usuários.",
     xp: 150,
   },
   13: {
     id: 13,
-    icon: <FileText size={64} />,
+    icon: <FileText size={48} />,
     title: "Crítico Experiente",
     description: "Alcançou a marca de 50 avaliações de jogos.",
     xp: 200,
   },
   14: {
     id: 14,
-    icon: <Gem size={64} />,
+    icon: <Gem size={48} />,
     title: "Ouro Puro",
     description: "Sua avaliação recebeu 50 curtidas.",
     xp: 200,
   },
   15: {
     id: 15,
-    icon: <Megaphone size={64} />,
+    icon: <Megaphone size={48} />,
     title: "Influenciador",
     description: "Conquistou uma base de 25 seguidores.",
     xp: 250,
   },
   16: {
     id: 16,
-    icon: <Award size={64} />,
+    icon: <Award size={48} />,
     title: "Lenda da Análise",
     description: "Tornou-se uma referência com 100 avaliações.",
     xp: 400,
   },
   17: {
     id: 17,
-    icon: <ShieldCheck size={64} />,
+    icon: <ShieldCheck size={48} />,
     title: "Especialista da Franquia",
     description: "Avaliou 25 jogos do seu time do coração.",
     xp: 250,
   },
   18: {
     id: 18,
-    icon: <Globe size={64} />,
+    icon: <Globe size={48} />,
     title: "Maratonista da NBA",
     description: "Avaliou um jogo de cada uma das 30 equipes da liga.",
     xp: 500,
@@ -163,6 +180,7 @@ const allAchievements = {
 };
 
 export default function ProfilePage() {
+  // ... (toda a lógica de hooks, fetch e handlers continua a mesma da versão anterior)
   const params = useParams();
   const { username } = params;
   const { user: currentUser } = useAuth();
@@ -170,26 +188,20 @@ export default function ProfilePage() {
   const [stats, setStats] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("avaliacoes");
+  const [loadingStats, setLoadingStats] = useState(false);
   const [modal, setModal] = useState({ isOpen: false, type: "", users: [] });
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("all-time");
 
-  const fetchProfileData = useCallback(async () => {
+  const fetchPageData = useCallback(async () => {
     if (!username) return;
+    setLoading(true);
     try {
-      const [profileRes, statsRes] = await Promise.all([
-        api.get(`/usuarios/${username}/profile`),
-        api.get(`/usuarios/${username}/stats`),
-      ]);
+      const profileRes = await api.get(`/usuarios/${username}/profile`);
       setProfile(profileRes.data);
-      setStats(statsRes.data);
-
       if (currentUser && currentUser.username !== username) {
         const followersRes = await api.get(`/usuarios/${username}/followers`);
-        const iFollowThisUser = followersRes.data.some(
-          (follower) => follower.id === currentUser.id
-        );
-        setIsFollowing(iFollowThisUser);
+        setIsFollowing(followersRes.data.some((f) => f.id === currentUser.id));
       }
     } catch (error) {
       console.error("Erro ao buscar dados do perfil:", error);
@@ -199,9 +211,38 @@ export default function ProfilePage() {
   }, [username, currentUser]);
 
   useEffect(() => {
-    setLoading(true);
-    fetchProfileData();
-  }, [fetchProfileData]);
+    fetchPageData();
+  }, [fetchPageData]);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!username) return;
+      setLoadingStats(true);
+      const today = new Date();
+      let startDate = null;
+      if (activeTab === "last-week") {
+        startDate = new Date(new Date().setDate(today.getDate() - 7))
+          .toISOString()
+          .split("T")[0];
+      } else if (activeTab === "last-month") {
+        startDate = new Date(new Date().setMonth(today.getMonth() - 1))
+          .toISOString()
+          .split("T")[0];
+      }
+      try {
+        const params = startDate ? { start_date: startDate } : {};
+        const statsRes = await api.get(`/usuarios/${username}/stats`, {
+          params,
+        });
+        setStats(statsRes.data);
+      } catch (error) {
+        console.error("Erro ao buscar estatísticas:", error);
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+    fetchStats();
+  }, [username, activeTab]);
 
   const handleFollowToggle = async () => {
     if (!currentUser)
@@ -212,7 +253,7 @@ export default function ProfilePage() {
       } else {
         await api.post(`/usuarios/${profile.id}/follow`);
       }
-      fetchProfileData();
+      fetchPageData();
     } catch (error) {
       console.error("Erro ao seguir/deixar de seguir:", error);
     }
@@ -238,63 +279,89 @@ export default function ProfilePage() {
     );
 
   const isMyProfile = currentUser?.username === profile.username;
+  const themeColor = profile.time_favorito
+    ? teamColors[profile.time_favorito.sigla]?.primary
+    : "#FBBF24";
+  const unlockedAchievementIds = new Set(
+    profile.conquistas_desbloqueadas.map((a) => a.conquista.id)
+  );
+  const maxRatingCount = stats
+    ? Math.max(1, ...Object.values(stats.distribuicao_notas))
+    : 1; // Garante que não seja 0 para evitar divisão por zero
+  const ratingColors = {
+    5: "#4ade80",
+    4: "#a3e635",
+    3: "#facc15",
+    2: "#fb923c",
+    1: "#f87171",
+  };
 
   return (
-    <main className="container mx-auto px-6 py-8 max-w-screen-xl">
+    <main className="p-6 md:p-8">
       {modal.isOpen && (
         <FollowModal
           title={modal.type}
           users={modal.users}
-          onClose={() => setModal({ isOpen: false, type: "", users: [] })}
+          onClose={() => setModal({ ...modal, isOpen: false })}
         />
       )}
       {isEditModalOpen && (
         <EditProfileModal
           user={profile}
           onClose={() => setIsEditModalOpen(false)}
-          onProfileUpdate={fetchProfileData}
+          onProfileUpdate={fetchPageData}
         />
       )}
 
-      <div className="bg-slate-900/50 border border-slate-700 rounded-2xl p-6 md:p-8 mb-8">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-6">
-            <div className="relative flex-shrink-0">
+      {/* ========== HEADER ATUALIZADO ========== */}
+      <header
+        className="rounded-xl p-6 flex flex-col md:flex-row items-center justify-between"
+        style={{
+          background: "linear-gradient(180deg, #2A3A54 0%, #1A2233 100%)",
+          borderBottom: "1px solid #374151",
+        }}
+      >
+        <div className="flex items-center flex-1">
+          <div className="relative">
+            <Image
+              alt="User avatar"
+              className="w-24 h-24 rounded-full border-4 object-cover"
+              src={
+                profile.foto_perfil
+                  ? `${process.env.NEXT_PUBLIC_API_URL}${profile.foto_perfil}`
+                  : "/placeholder.png"
+              }
+              width={96}
+              height={96}
+              style={{ borderColor: themeColor }}
+            />
+            {profile.time_favorito && (
               <Image
-                src={
-                  profile.foto_perfil
-                    ? `${process.env.NEXT_PUBLIC_API_URL}${profile.foto_perfil}`
-                    : "/placeholder.png"
-                }
-                alt={`Foto de ${profile.username}`}
-                width={96}
-                height={96}
-                className="rounded-full w-24 h-24 border-4 border-slate-700 object-cover bg-slate-800"
+                alt="Team logo"
+                className="absolute bottom-0 right-0 w-12 h-12"
+                src={profile.time_favorito.logo_url}
+                width={48}
+                height={48}
               />
-              {profile.time_favorito && (
-                <Image
-                  src={profile.time_favorito.logo_url}
-                  alt="Time Favorito"
-                  width={40}
-                  height={40}
-                  className="w-10 h-10 rounded-full absolute -bottom-1 -right-1 border-2 border-slate-800 bg-slate-900"
-                />
-              )}
-            </div>
-            <div className="text-center md:text-left">
-              <h1 className="text-2xl font-bold">
-                {profile.nome_completo || profile.username}
-              </h1>
-              <p className="text-gray-400">@{profile.username}</p>
-            </div>
+            )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="ml-4">
+            <h1 className="text-xl font-bold text-white">
+              {profile.nome_completo || profile.username}
+            </h1>
+            <p className="text-gray-400">@{profile.username}</p>
+          </div>
+        </div>
+        {/* --- Bloco de Ações e Seguidores Agrupado e Empilhado --- */}
+        <div className="flex flex-col items-end gap-4 mt-4 md:mt-0">
+          <div className="flex items-center gap-4">
             {isMyProfile ? (
               <button
                 onClick={() => setIsEditModalOpen(true)}
-                className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
+                className="font-bold py-2 px-4 rounded-full flex items-center transition-colors text-white hover:brightness-110"
+                style={{ backgroundColor: themeColor }}
               >
-                <Pencil size={16} /> Editar Perfil
+                <Edit className="mr-2 h-4 w-4" /> Editar Perfil
               </button>
             ) : (
               <button
@@ -302,50 +369,137 @@ export default function ProfilePage() {
                 className={`font-bold py-2 px-6 rounded-lg transition-colors ${
                   isFollowing
                     ? "bg-gray-600 hover:bg-red-700"
-                    : "bg-[#4DA6FF] hover:bg-blue-600"
+                    : "bg-blue-500 hover:bg-blue-600"
                 }`}
               >
                 {isFollowing ? "Seguindo" : "Seguir"}
               </button>
             )}
-            <button className="bg-gray-700 hover:bg-gray-600 text-white font-bold p-2 rounded-lg transition-colors">
-              <Share2 size={20} />
-            </button>
+            <Share2 className="h-6 w-6 text-gray-400 cursor-pointer hover:text-white" />
+          </div>
+          <div className="bg-gray-700/50 rounded-lg p-2 flex items-center gap-6 text-center">
+            <div
+              className="cursor-pointer px-2"
+              onClick={() => handleOpenModal("followers")}
+            >
+              <p className="text-xl font-bold text-white">
+                {profile.total_seguidores}
+              </p>
+              <p className="text-gray-400 text-xs">SEGUIDORES</p>
+            </div>
+            <div
+              className="cursor-pointer px-2"
+              onClick={() => handleOpenModal("following")}
+            >
+              <p className="text-xl font-bold text-white">
+                {profile.total_seguindo}
+              </p>
+              <p className="text-gray-400 text-xs">SEGUINDO</p>
+            </div>
           </div>
         </div>
-        {profile.bio && (
-          <p className="text-gray-300 mt-6 pt-6 border-t border-slate-800 text-center md:text-left">
-            {profile.bio}
-          </p>
-        )}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center mt-6 pt-6 border-t border-slate-800">
-          <div className="cursor-pointer">
-            <p className="text-2xl font-bold">{profile.total_avaliacoes}</p>
-            <p className="text-xs text-gray-400">Avaliações</p>
-          </div>
-          <div
-            className="cursor-pointer hover:opacity-80"
-            onClick={() => handleOpenModal("followers")}
+      </header>
+
+      <div className="flex justify-center my-6">
+        <div className="flex space-x-1 bg-gray-800 p-1 rounded-full">
+          <button
+            onClick={() => setActiveTab("last-week")}
+            className={`py-1.5 px-3 rounded-full text-sm font-medium cursor-pointer transition-colors ${
+              activeTab === "last-week"
+                ? "text-gray-900"
+                : "bg-transparent text-gray-400"
+            }`}
+            style={
+              activeTab === "last-week" ? { backgroundColor: themeColor } : {}
+            }
           >
-            <p className="text-2xl font-bold">{profile.total_seguidores}</p>
-            <p className="text-xs text-gray-400">Seguidores</p>
-          </div>
-          <div
-            className="cursor-pointer hover:opacity-80"
-            onClick={() => handleOpenModal("following")}
+            Última Semana
+          </button>
+          <button
+            onClick={() => setActiveTab("last-month")}
+            className={`py-1.5 px-3 rounded-full text-sm font-medium cursor-pointer transition-colors ${
+              activeTab === "last-month"
+                ? "text-gray-900"
+                : "bg-transparent text-gray-400"
+            }`}
+            style={
+              activeTab === "last-month" ? { backgroundColor: themeColor } : {}
+            }
           >
-            <p className="text-2xl font-bold">{profile.total_seguindo}</p>
-            <p className="text-xs text-gray-400">Seguindo</p>
-          </div>
+            Este Mês
+          </button>
+          <button
+            onClick={() => setActiveTab("all-time")}
+            className={`py-1.5 px-3 rounded-full text-sm font-medium cursor-pointer transition-colors ${
+              activeTab === "all-time"
+                ? "text-gray-900"
+                : "bg-transparent text-gray-400"
+            }`}
+            style={
+              activeTab === "all-time" ? { backgroundColor: themeColor } : {}
+            }
+          >
+            Todo o Período
+          </button>
         </div>
       </div>
 
-      <ProfileStats stats={stats} />
+      {/* ========== CARDS DE ESTATÍSTICAS ATUALIZADOS ========== */}
+      {loadingStats || !stats ? (
+        <div className="text-center py-10">Carregando estatísticas...</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-[#2D3748] rounded-xl p-4 flex flex-col items-center justify-center text-center">
+            <ClipboardList style={{ color: themeColor }} className="h-8 w-8" />
+            <p className="text-3xl font-bold mt-2">{stats.total_avaliacoes}</p>
+            <p className="text-gray-400 text-sm">Avaliações</p>
+          </div>
+          <div className="bg-[#2D3748] rounded-xl p-4 flex flex-col items-center justify-center text-center">
+            <Award style={{ color: themeColor }} className="h-8 w-8" />
+            <p className="text-3xl font-bold mt-2">
+              {stats.media_geral.toFixed(2)}
+            </p>
+            <p className="text-gray-400 text-sm">Média</p>
+          </div>
+          {/* --- Card de Distribuição com Gráfico Vertical --- */}
+          <div className="bg-[#2D3748] rounded-xl p-4 md:col-span-1">
+            <h2 className="text-md font-bold text-center mb-3">
+              Distribuição de Notas
+            </h2>
+            <div className="flex justify-around items-end h-32 px-2 space-x-2">
+              {[5, 4, 3, 2, 1].map((rating) => (
+                <VerticalRatingBar
+                  key={rating}
+                  rating={rating}
+                  count={stats.distribuicao_notas[rating] || 0}
+                  maxCount={maxRatingCount}
+                  color={ratingColors[rating]}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
-      <div className="bg-slate-900/50 border border-slate-700 rounded-2xl p-6 md:p-8">
-        <h2 className="text-xl font-bold mb-4">
-          Avaliações Recentes de {profile.username}
-        </h2>
+      <div className="bg-[#2D3748] rounded-xl p-6 my-6">
+        <h2 className="text-xl font-bold mb-6">Conquistas</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6 text-center">
+          {Object.values(allAchievements).map((ach) => (
+            <AchievementCard
+              key={ach.id}
+              icon={ach.icon}
+              title={ach.title}
+              description={ach.description}
+              xp={ach.xp}
+              unlocked={unlockedAchievementIds.has(ach.id)}
+              themeColor={themeColor}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-[#2D3748] rounded-xl p-6">
+        <h2 className="text-xl font-bold mb-4">Avaliações Recentes</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {profile.avaliacoes_recentes.length > 0 ? (
             profile.avaliacoes_recentes.map((review) => (
@@ -379,9 +533,9 @@ export default function ProfilePage() {
               </Link>
             ))
           ) : (
-            <p className="text-gray-400 col-span-full text-center py-8">
-              Este utilizador ainda não fez nenhuma avaliação.
-            </p>
+            <div className="col-span-full text-center text-gray-500 py-8">
+              <p>Nenhuma avaliação encontrada com os filtros selecionados.</p>
+            </div>
           )}
         </div>
       </div>

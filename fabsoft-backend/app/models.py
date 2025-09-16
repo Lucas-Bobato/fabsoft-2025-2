@@ -97,14 +97,13 @@ class Jogo(Base):
 class Avaliacao_Jogo(Base):
     __tablename__ = "avaliacoes_jogo"
     id = Column(Integer, primary_key=True, index=True)
-    # --- CAMPOS DE NOTA ---
-    nota_geral = Column(Integer, nullable=False)
-    nota_ataque_casa = Column(Integer)
-    nota_defesa_casa = Column(Integer)
-    nota_ataque_visitante = Column(Integer)
-    nota_defesa_visitante = Column(Integer)
-    nota_arbitragem = Column(Integer)
-    nota_atmosfera = Column(Integer)
+    nota_geral = Column(Float, nullable=False)
+    nota_ataque_casa = Column(Float)
+    nota_defesa_casa = Column(Float)
+    nota_ataque_visitante = Column(Float)
+    nota_defesa_visitante = Column(Float)
+    nota_arbitragem = Column(Float)
+    nota_atmosfera = Column(Float)
     
     resenha = Column(String, nullable=True)
     data_avaliacao = Column(DateTime(timezone=True), server_default=func.now())
