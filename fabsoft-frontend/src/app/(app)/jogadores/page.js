@@ -60,7 +60,7 @@ export default function JogadoresPage() {
             <Link
               key={player.id}
               href={`/jogadores/${player.slug}`}
-              className="bg-[#082139] border border-gray-800 p-4 rounded-lg flex flex-col items-center text-center hover:border-gray-600 transition-colors"
+              className="bg-[#133B5C] border border-gray-800 p-4 rounded-lg flex flex-col items-center text-center hover:border-gray-600 transition-colors"
             >
               <Image
                 src={player.foto_url || "/placeholder.png"}

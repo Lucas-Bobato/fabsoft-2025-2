@@ -19,7 +19,7 @@ class Liga(LigaBase):
 class TimeBase(BaseModel):
     api_id: Optional[int] = None
     nome: str
-    slug: str
+    slug: Optional[str] = None
     sigla: str
     cidade: Optional[str] = None
     logo_url: Optional[str] = None
