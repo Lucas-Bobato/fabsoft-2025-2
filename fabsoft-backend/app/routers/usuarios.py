@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import jwt, JWTError
-from typing import List
+from typing import List, Optional
 from sqlalchemy.orm import Session
+from datetime import date
 
-from .. import crud, schemas, security
+from .. import crud, schemas, security, models
 from ..config import settings
 from ..dependencies import get_db
 
@@ -88,15 +89,66 @@ def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return users
 
 @router.get("/me", response_model=schemas.Usuario)
-def read_users_me(current_user: schemas.Usuario = Depends(get_current_user)):
+def read_users_me(current_user: models.Usuario = Depends(get_current_user)):
     """
     Retorna os dados do usuário atualmente autenticado.
     """
     return current_user
 
-@router.get("/{username}", response_model=schemas.Usuario)
-def read_user(username: str, db: Session = Depends(get_db)):
-    db_user = crud.get_user_by_username(db, username=username)
-    if db_user is None:
+@router.put("/me", response_model=schemas.Usuario)
+def update_current_user(
+    user_data: schemas.UsuarioUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    return crud.update_user(db=db, user_id=current_user.id, user_data=user_data)
+
+@router.get("/{username}/profile", response_model=schemas.UsuarioProfile)
+def read_user_profile(
+    username: str,
+    db: Session = Depends(get_db),
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None
+):
+    profile = crud.get_user_profile_by_username(db, username=username, start_date=start_date, end_date=end_date)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Perfil de usuário não encontrado")
+    return profile
+
+@router.get("/{username}/followers", response_model=List[schemas.UsuarioSocialInfo])
+def get_user_followers_endpoint(
+    username: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[schemas.Usuario] = Depends(try_get_current_user)
+):
+    user = crud.get_user_by_username(db, username=username)
+    if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
-    return db_user
+    
+    current_user_id = current_user.id if current_user else None
+    return crud.get_user_followers(db, user_id=user.id, current_user_id=current_user_id)
+
+@router.get("/{username}/following", response_model=List[schemas.UsuarioSocialInfo])
+def get_user_following_endpoint(
+    username: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[schemas.Usuario] = Depends(try_get_current_user)
+):
+    user = crud.get_user_by_username(db, username=username)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    
+    current_user_id = current_user.id if current_user else None
+    return crud.get_user_following(db, user_id=user.id, current_user_id=current_user_id)
+
+@router.get("/{username}/stats", response_model=schemas.UserStats)
+def read_user_stats(
+    username: str,
+    db: Session = Depends(get_db),
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None
+):
+    user = crud.get_user_by_username(db, username=username)
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilizador não encontrado")
+    return crud.get_user_stats(db, user_id=user.id, start_date=start_date, end_date=end_date)

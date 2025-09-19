@@ -81,6 +81,25 @@ export default function BoxScore({ gameId }) {
           <tbody>{renderPlayerStats(boxScore.home_team.players)}</tbody>
         </table>
       </div>
+      <div>
+        <h3 className="text-lg font-bold mb-2">Play-by-Play</h3>
+        <div className="max-h-96 overflow-y-auto">
+          <table className="w-full text-left">
+            <tbody>
+              {boxScore.play_by_play.map((play) => (
+                <tr
+                  key={play.event_num}
+                  className="border-b border-gray-800 text-sm"
+                >
+                  <td className="p-2">{play.clock}</td>
+                  <td className="p-2">{play.period}</td>
+                  <td className="p-2">{play.description}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

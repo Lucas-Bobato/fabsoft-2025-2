@@ -33,7 +33,7 @@ export default function TimesPage() {
             <Link
               key={team.id}
               href={`/times/${team.slug}`}
-              className="bg-[#082139] border border-gray-800 p-4 rounded-lg flex flex-col items-center justify-center gap-3 hover:border-gray-600 transition-all duration-200 hover:scale-105"
+              className="bg-[#133B5C] border border-gray-800 p-4 rounded-lg flex flex-col items-center justify-center gap-3 hover:border-gray-600 transition-all duration-200 hover:scale-105"
             >
               <Image
                 src={team.logo_url}

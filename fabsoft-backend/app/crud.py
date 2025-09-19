@@ -1,10 +1,12 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, desc
-from datetime import datetime, timedelta, date
+from datetime import datetime, date, timedelta
 from typing import List, Optional, Union
 from . import models, schemas, security
 from .models import NivelUsuario
 from .utils import generate_slug
+from fastapi import HTTPException
+import os
 
 def get_user(db: Session, user_id: int):
     return db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
@@ -44,6 +46,51 @@ def authenticate_user(db: Session, email: str, password: str):
     if not security.verify_password(password, user.senha):
         return None
     return user
+
+def get_user_profile_by_username(db: Session, username: str, start_date: Optional[date] = None, end_date: Optional[date] = None):
+    db_user = get_user_by_username(db, username=username)
+    if not db_user:
+        return None
+
+    user_data = schemas.Usuario.model_validate(db_user).model_dump()
+
+    # Filtra avaliações recentes por data, se fornecido
+    recent_reviews_query = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.usuario_id == db_user.id)
+    if start_date:
+        recent_reviews_query = recent_reviews_query.filter(models.Avaliacao_Jogo.data_avaliacao >= start_date)
+    if end_date:
+        recent_reviews_query = recent_reviews_query.filter(models.Avaliacao_Jogo.data_avaliacao <= end_date)
+    
+    user_data['avaliacoes_recentes'] = recent_reviews_query.order_by(models.Avaliacao_Jogo.data_avaliacao.desc()).limit(10).all()
+
+    # O restante continua igual
+    user_data['total_avaliacoes'] = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.usuario_id == db_user.id).count()
+    user_data['total_seguidores'] = db.query(models.Seguidor).filter(models.Seguidor.seguido_id == db_user.id).count()
+    user_data['total_seguindo'] = db.query(models.Seguidor).filter(models.Seguidor.seguidor_id == db_user.id).count()
+    user_data['conquistas_desbloqueadas'] = get_conquistas_por_usuario(db, user_id=db_user.id)
+
+    profile_data = schemas.UsuarioProfile.model_validate(user_data)
+
+    return profile_data
+
+def update_user(db: Session, user_id: int, user_data: schemas.UsuarioUpdate):
+    db_user = db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
+    if not db_user:
+        return None
+    
+    update_data = user_data.model_dump(exclude_unset=True)
+
+    if "foto_perfil" in update_data and db_user.foto_perfil:
+        old_photo_path = db_user.foto_perfil.lstrip('/')
+        if os.path.exists(old_photo_path):
+            os.remove(old_photo_path)
+            
+    for key, value in update_data.items():
+        setattr(db_user, key, value)
+        
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
 # --- Funções CRUD para Liga ---
 
@@ -133,7 +180,7 @@ def get_jogador_by_slug(db: Session, jogador_slug: str):
 
 def create_jogador_com_details(db: Session, jogador: schemas.JogadorCreateComDetails):
     jogador_data = jogador.model_dump()
-    jogador_data["slug"] = generate_slug(jogador.nome)
+    jogador_data["slug"] = generate_slug(jogador.nome_normalizado)
     db_jogador = models.Jogador(**jogador_data)
     db.add(db_jogador)
     db.commit()
@@ -209,6 +256,7 @@ def get_jogador_details(db: Session, jogador_slug: str):
         "id": db_jogador.id,
         "api_id": db_jogador.api_id,
         "nome": db_jogador.nome,
+        "nome_normalizado": db_jogador.nome_normalizado,
         "slug": db_jogador.slug,
         "numero_camisa": db_jogador.numero_camisa,
         "posicao": db_jogador.posicao,
@@ -231,10 +279,51 @@ def get_jogador_details(db: Session, jogador_slug: str):
         data_nasc = db_jogador.data_nascimento.date() if isinstance(db_jogador.data_nascimento, datetime) else db_jogador.data_nascimento
         idade = hoje.year - data_nasc.year - ((hoje.month, hoje.day) < (data_nasc.month, data_nasc.day))
 
-    conquistas = db.query(models.Conquista_Jogador).filter(models.Conquista_Jogador.jogador_id == db_jogador.id).all()
+    # Lógica de agrupamento de prêmios
+    conquistas_query = db.query(models.Conquista_Jogador).filter(models.Conquista_Jogador.jogador_id == db_jogador.id).all()
+    
+    premios_agrupados = {}
+    outros_premios = []
+
+    for conquista in conquistas_query:
+        nome = conquista.nome_conquista
+        if "Player of the Week" in nome:
+            tipo_premio = "Player of the Week"
+            if tipo_premio not in premios_agrupados:
+                premios_agrupados[tipo_premio] = 0
+            premios_agrupados[tipo_premio] += 1
+        elif "Player of the Month" in nome:
+            tipo_premio = "Player of the Month"
+            if tipo_premio not in premios_agrupados:
+                premios_agrupados[tipo_premio] = 0
+            premios_agrupados[tipo_premio] += 1
+        elif "All-Star" in nome:
+            tipo_premio = "All-Star"
+            if tipo_premio not in premios_agrupados:
+                premios_agrupados[tipo_premio] = 0
+            premios_agrupados[tipo_premio] += 1
+        elif "All-NBA" in nome:
+            tipo_premio = "All-NBA Team"
+            if tipo_premio not in premios_agrupados:
+                premios_agrupados[tipo_premio] = 0
+            premios_agrupados[tipo_premio] += 1
+        else:
+            outros_premios.append(conquista)
+
+    conquistas_finais = []
+    for nome, vezes in premios_agrupados.items():
+        # Criamos um objeto com o nome do prêmio formatado e sem temporada
+        conquistas_finais.append(schemas.ConquistaJogador(
+            nome_conquista=f"{vezes}x {nome}",
+            temporada=""
+        ))
+
+    # Adicionamos os outros prêmios que não foram agrupados
+    conquistas_finais.extend(outros_premios)
+    
     stats_por_temporada = get_jogador_stats_por_temporada(db, jogador_id=db_jogador.id)
     jogador_schema.idade = idade
-    jogador_schema.conquistas = conquistas
+    jogador_schema.conquistas = conquistas_finais
     jogador_schema.stats_por_temporada = stats_por_temporada
     
     return jogador_schema
@@ -314,8 +403,41 @@ def create_jogo(db: Session, jogo: schemas.JogoCreate):
 def get_jogo(db: Session, jogo_id: int):
     return db.query(models.Jogo).filter(models.Jogo.id == jogo_id).first()
 
-def get_jogos(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Jogo).offset(skip).limit(limit).all()
+def get_jogos(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    time_id: Optional[int] = None,
+    data: Optional[date] = None,
+    status: Optional[str] = None,
+):
+    query = db.query(models.Jogo)
+
+    # Se uma data específica for fornecida, filtra por essa data
+    if data:
+        query = query.filter(func.date(models.Jogo.data_jogo) == data)
+    # Se NENHUMA data e NENHUM time forem fornecidos, mostra os jogos futuros por padrão
+    elif not time_id and not status:
+        query = query.filter(models.Jogo.data_jogo >= datetime.now())
+
+    # Aplica o filtro de time se ele for fornecido
+    if time_id:
+        query = query.filter(
+            (models.Jogo.time_casa_id == time_id) | (models.Jogo.time_visitante_id == time_id)
+        )
+
+    # Aplica o filtro de status se ele for fornecido
+    if status:
+        if status == "live":
+            # Uma lógica simples para jogos "ao vivo" - pode ser aprimorada
+            query = query.filter(models.Jogo.status_jogo.like("%Q%"))
+        else:
+            query = query.filter(models.Jogo.status_jogo == status)
+
+    # Ordena os jogos pela data
+    query = query.order_by(models.Jogo.data_jogo.asc())
+
+    return query.offset(skip).limit(limit).all()
 
 # --- Funções CRUD para Avaliacao_Jogo ---
 
@@ -339,7 +461,11 @@ def get_avaliacao(db: Session, avaliacao_id: int):
 
 def get_avaliacoes_por_jogo(db: Session, jogo_id: int, usuario_id_logado: Optional[int] = None, skip: int = 0, limit: int = 100):
     db_avaliacoes = db.query(models.Avaliacao_Jogo).options(
-        joinedload(models.Avaliacao_Jogo.usuario)
+        joinedload(models.Avaliacao_Jogo.usuario),
+        joinedload(models.Avaliacao_Jogo.jogo).options(
+            joinedload(models.Jogo.time_casa),
+            joinedload(models.Jogo.time_visitante)
+        )
     ).filter(models.Avaliacao_Jogo.jogo_id == jogo_id).order_by(models.Avaliacao_Jogo.data_avaliacao.desc()).offset(skip).limit(limit).all()
     
     ids_curtidos = set()
@@ -356,6 +482,47 @@ def get_avaliacoes_por_jogo(db: Session, jogo_id: int, usuario_id_logado: Option
         avaliacoes_finais.append(avaliacao_schema)
             
     return avaliacoes_finais
+
+def update_avaliacao(db: Session, avaliacao_id: int, avaliacao: schemas.AvaliacaoJogoCreate, user_id: int):
+    db_avaliacao = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.id == avaliacao_id).first()
+    if not db_avaliacao:
+        raise HTTPException(status_code=404, detail="Avaliação não encontrada")
+    if db_avaliacao.usuario_id != user_id:
+        raise HTTPException(status_code=403, detail="Não autorizado")
+    
+    update_data = avaliacao.model_dump(exclude_unset=True)
+
+    for key, value in update_data.items():
+        setattr(db_avaliacao, key, value)
+        
+    db.commit()
+    db.refresh(db_avaliacao)
+    return db_avaliacao
+
+def delete_avaliacao(db: Session, avaliacao_id: int, user_id: int):
+    db_avaliacao = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.id == avaliacao_id).first()
+    if not db_avaliacao:
+        raise HTTPException(status_code=404, detail="Avaliação não encontrada")
+    if db_avaliacao.usuario_id != user_id:
+        raise HTTPException(status_code=403, detail="Não autorizado")
+    db.delete(db_avaliacao)
+    db.commit()
+    
+def get_avaliacao_com_curtida(db: Session, avaliacao_id: int, usuario_id_logado: Optional[int] = None):
+    db_avaliacao = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.id == avaliacao_id).first()
+    if not db_avaliacao:
+        return None
+
+    avaliacao_schema = schemas.AvaliacaoJogo.from_orm(db_avaliacao)
+
+    if usuario_id_logado:
+        curtida = db.query(models.Curtida_Avaliacao).filter(
+            models.Curtida_Avaliacao.avaliacao_id == avaliacao_id,
+            models.Curtida_Avaliacao.usuario_id == usuario_id_logado
+        ).first()
+        avaliacao_schema.curtido_pelo_usuario_atual = curtida is not None
+
+    return avaliacao_schema
 
 # --- Funções CRUD para Estatistica_Jogador_Jogo ---
 
@@ -826,6 +993,11 @@ def check_conquistas_para_usuario(db: Session, usuario_id: int):
 
     uma_semana_atras = datetime.now() - timedelta(days=7)
     avaliacoes_na_semana = 0
+    
+    RIVALRIES = [
+        (2, 14),  # Celtics vs Lakers
+        (17, 7),  # Knicks vs Bulls
+    ]
 
     for av in avaliacoes:
         # Jogo da Temporada (Nota 5.0)
@@ -851,6 +1023,13 @@ def check_conquistas_para_usuario(db: Session, usuario_id: int):
         # Maratonista
         if av.data_avaliacao.date() > uma_semana_atras.date():
             avaliacoes_na_semana += 1
+            
+        # Rivalidade Histórica
+        for team1, team2 in RIVALRIES:
+            if (av.jogo.time_casa.api_id == team1 and av.jogo.time_visitante.api_id == team2) or \
+               (av.jogo.time_casa.api_id == team2 and av.jogo.time_visitante.api_id == team1):
+                grant_conquista_usuario(db, usuario_id, 11)
+
 
     if avaliacoes_time_favorito >= 1: grant_conquista_usuario(db, usuario_id, 5)
     if avaliacoes_time_favorito >= 25: grant_conquista_usuario(db, usuario_id, 17)
@@ -885,7 +1064,7 @@ def perform_advanced_search(
     # Se critérios de jogador forem fornecidos, busca jogadores
     if nome_jogador:
         query_jogador = db.query(models.Jogador)
-        query_jogador = query_jogador.filter(models.Jogador.nome.ilike(f"%{nome_jogador}%"))
+        query_jogador = query_jogador.filter(models.Jogador.nome_normalizado.ilike(f"%{nome_jogador}%"))
         resultados.extend(query_jogador.limit(10).all())
 
     # Se critérios de jogo forem fornecidos, busca jogos
@@ -965,3 +1144,92 @@ def get_estatisticas_gerais_jogo(db: Session, jogo_id: int):
         mvp_mais_votado=mvp_info,
         decepcao_mais_votada=decepcao_info
     )
+    
+def update_user(db: Session, user_id: int, user_data: schemas.UsuarioUpdate):
+    db_user = db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
+    if not db_user:
+        return None
+    
+    update_data = user_data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_user, key, value)
+        
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+def get_user_followers(db: Session, user_id: int, current_user_id: Optional[int] = None):
+    followers_query = db.query(models.Usuario).join(models.Seguidor, models.Usuario.id == models.Seguidor.seguidor_id).filter(models.Seguidor.seguido_id == user_id).all()
+    if not current_user_id:
+        return [schemas.UsuarioSocialInfo.model_validate(user) for user in followers_query]
+    
+    following_by_current_user = {f.seguido_id for f in db.query(models.Seguidor).filter(models.Seguidor.seguidor_id == current_user_id).all()}
+    
+    result = []
+    for user in followers_query:
+        user_info = schemas.UsuarioSocialInfo.model_validate(user)
+        user_info.is_followed_by_current_user = user.id in following_by_current_user
+        result.append(user_info)
+        
+    return result
+
+def get_user_following(db: Session, user_id: int, current_user_id: Optional[int] = None):
+    following_query = db.query(models.Usuario).join(models.Seguidor, models.Usuario.id == models.Seguidor.seguido_id).filter(models.Seguidor.seguidor_id == user_id).all()
+    if not current_user_id:
+        return [schemas.UsuarioSocialInfo.model_validate(user) for user in following_query]
+
+    following_by_current_user = {f.seguido_id for f in db.query(models.Seguidor).filter(models.Seguidor.seguidor_id == current_user_id).all()}
+
+    result = []
+    for user in following_query:
+        user_info = schemas.UsuarioSocialInfo.model_validate(user)
+        user_info.is_followed_by_current_user = user.id in following_by_current_user
+        result.append(user_info)
+        
+    return result
+
+def get_user_stats(db: Session, user_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None):
+    # Constrói a query base para avaliações
+    query = db.query(models.Avaliacao_Jogo).filter(models.Avaliacao_Jogo.usuario_id == user_id)
+
+    # Aplica os filtros de data se eles forem fornecidos
+    if start_date:
+        query = query.filter(models.Avaliacao_Jogo.data_avaliacao >= start_date)
+    if end_date:
+        query = query.filter(models.Avaliacao_Jogo.data_avaliacao <= end_date)
+
+    # Executa a query filtrada
+    avaliacoes = query.all()
+
+    total_avaliacoes = len(avaliacoes)
+    if total_avaliacoes == 0:
+        return schemas.UserStats(total_avaliacoes=0, media_geral=0.0, distribuicao_notas={i: 0 for i in range(1, 6)})
+
+    soma_notas = sum(a.nota_geral for a in avaliacoes)
+    media_geral = round(soma_notas / total_avaliacoes, 2)
+
+    distribuicao = {i: 0 for i in range(1, 6)}
+    for a in avaliacoes:
+        nota_arredondada = int(round(a.nota_geral))
+        if 1 <= nota_arredondada <= 5:
+            distribuicao[nota_arredondada] += 1
+            
+    return schemas.UserStats(total_avaliacoes=total_avaliacoes, media_geral=media_geral, distribuicao_notas=distribuicao)
+
+def get_schedule_for_time(db: Session, time_id: int):
+    """
+    Busca os últimos 2 jogos e os próximos 2 jogos de um time.
+    """
+    now = datetime.now()
+    
+    recent_games = db.query(models.Jogo).filter(
+        (models.Jogo.time_casa_id == time_id) | (models.Jogo.time_visitante_id == time_id),
+        models.Jogo.data_jogo < now
+    ).order_by(models.Jogo.data_jogo.desc()).limit(2).all()
+    
+    upcoming_games = db.query(models.Jogo).filter(
+        (models.Jogo.time_casa_id == time_id) | (models.Jogo.time_visitante_id == time_id),
+        models.Jogo.data_jogo >= now
+    ).order_by(models.Jogo.data_jogo.asc()).limit(2).all()
+    
+    return schemas.Schedule(recent=recent_games, upcoming=upcoming_games)

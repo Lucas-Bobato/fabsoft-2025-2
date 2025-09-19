@@ -5,6 +5,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { Search } from "lucide-react";
 
+const normalizeText = (text) => {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+};
+
 export default function JogadoresPage() {
   const [players, setPlayers] = useState([]);
   const [filteredPlayers, setFilteredPlayers] = useState([]);
@@ -27,8 +34,9 @@ export default function JogadoresPage() {
   }, []);
 
   useEffect(() => {
+    const normalizedSearchTerm = normalizeText(searchTerm);
     const results = players.filter((player) =>
-      player.nome.toLowerCase().includes(searchTerm.toLowerCase())
+      normalizeText(player.nome_normalizado).includes(normalizedSearchTerm)
     );
     setFilteredPlayers(results);
   }, [searchTerm, players]);
@@ -60,7 +68,7 @@ export default function JogadoresPage() {
             <Link
               key={player.id}
               href={`/jogadores/${player.slug}`}
-              className="bg-[#082139] border border-gray-800 p-4 rounded-lg flex flex-col items-center text-center hover:border-gray-600 transition-colors"
+              className="bg-[#133B5C] border border-gray-800 p-4 rounded-lg flex flex-col items-center text-center hover:border-gray-600 transition-colors"
             >
               <Image
                 src={player.foto_url || "/placeholder.png"}

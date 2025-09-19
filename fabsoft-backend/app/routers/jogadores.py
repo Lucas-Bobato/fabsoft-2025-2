@@ -45,7 +45,13 @@ def read_jogador_gamelog(
     season: str = Path(..., description="A temporada a ser consultada, no formato 'YYYY-YY'.", examples=["2023-24"]),
     db: Session = Depends(get_db)
 ):
-    gamelog = crud.get_jogador_gamelog_season(db, jogador_slug=jogador_slug, season=season)
+    # 1. Primeiro, buscamos o jogador pelo slug para encontrar seu ID
+    db_jogador = crud.get_jogador_by_slug(db, jogador_slug=jogador_slug)
+    if db_jogador is None:
+        raise HTTPException(status_code=404, detail="Jogador não encontrado")
+
+    # 2. Agora, usamos o ID do jogador (db_jogador.id) para buscar o gamelog
+    gamelog = crud.get_jogador_gamelog_season(db, jogador_id=db_jogador.id, season=season)
     return gamelog
 
 @router.get(

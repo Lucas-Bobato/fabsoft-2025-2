@@ -19,7 +19,7 @@ class Liga(LigaBase):
 class TimeBase(BaseModel):
     api_id: Optional[int] = None
     nome: str
-    slug: str
+    slug: Optional[str] = None
     sigla: str
     cidade: Optional[str] = None
     logo_url: Optional[str] = None
@@ -49,6 +49,7 @@ class TimeRecord(BaseModel):
 class JogadorBase(BaseModel):
     api_id: Optional[int] = None
     nome: str
+    nome_normalizado: str
     numero_camisa: Optional[int] = None
     posicao: Optional[str] = None
     foto_url: Optional[str] = None
@@ -105,6 +106,7 @@ class JogadorDetails(Jogador):
 class JogadorRoster(BaseModel):
     id: int
     nome: str
+    nome_normalizado: str
     slug: str
     numero_camisa: Optional[int] = None
     posicao: Optional[str] = None
@@ -171,6 +173,7 @@ class UsuarioSimple(BaseModel):
     id: int
     username: str
     foto_perfil: Optional[str] = None
+    nivel_usuario: NivelUsuario
     model_config = {"from_attributes": True}
 
 # --- Schemas para Avaliacao_Jogo ---
@@ -201,6 +204,7 @@ class AvaliacaoJogo(AvaliacaoJogoBase):
     data_avaliacao: datetime
     curtidas: int
     usuario: UsuarioSimple
+    jogo: Jogo
     curtido_pelo_usuario_atual: bool = False
     model_config = {"from_attributes": True}
     
@@ -402,3 +406,36 @@ class JogoEstatisticasGerais(BaseModel):
     media_atmosfera: float = 0.0
     mvp_mais_votado: JogadorMaisVotado
     decepcao_mais_votada: JogadorMaisVotado
+    
+class AvaliacaoJogoSimple(BaseModel):
+    id: int
+    jogo: Jogo
+    nota_geral: float
+    resenha: Optional[str] = None
+    data_avaliacao: datetime
+    model_config = {"from_attributes": True}
+
+class UsuarioProfile(Usuario):
+    total_avaliacoes: int
+    total_seguidores: int
+    total_seguindo: int
+    avaliacoes_recentes: List[AvaliacaoJogoSimple] = []
+    conquistas_desbloqueadas: List[UsuarioConquista] = []
+    
+class UsuarioUpdate(BaseModel):
+    nome_completo: Optional[str] = None
+    bio: Optional[str] = None
+    time_favorito_id: Optional[int] = None
+    foto_perfil: Optional[str] = None
+
+class UsuarioSocialInfo(UsuarioSimple):
+    is_followed_by_current_user: bool = False
+    
+class UserStats(BaseModel):
+    total_avaliacoes: int
+    media_geral: float
+    distribuicao_notas: dict[int, int]
+    
+class Schedule(BaseModel):
+    recent: List[Jogo]
+    upcoming: List[Jogo]

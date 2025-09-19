@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Path
 from sqlalchemy.orm import Session
-from typing import List, Dict
+from typing import List, Dict, Optional
+from datetime import date
 import asyncio
 from nba_api.stats.endpoints import boxscoretraditionalv2, playbyplayv2, boxscoresummaryv2
-from .. import crud, schemas
+from .. import crud, schemas, models
 from ..dependencies import get_db
 from ..websocket_manager import manager
+from ..routers.usuarios import get_current_user
 
 router = APIRouter(prefix="/jogos", tags=["Jogos"])
 
@@ -49,7 +51,6 @@ async def track_real_game(game_api_id: str):
             )
             pbp_df = pbp.play_by_play.get_data_frame()
 
-            # 4. Processar e montar o nosso objeto de resposta
             home_team_row = team_stats_df.iloc[0]
             away_team_row = team_stats_df.iloc[1]
 
@@ -94,11 +95,9 @@ async def track_real_game(game_api_id: str):
                 play_by_play=play_by_play_events
             )
             
-            # 5. Transmitir os dados
-            await manager.broadcast(live_data.model_dump(), int(game_api_id)) # Usando game_api_id como chave
+            await manager.broadcast(live_data.model_dump(), int(game_api_id))
             
-            # 6. Aguardar antes da próxima atualização
-            await asyncio.sleep(20) # Intervalo de 20 segundos
+            await asyncio.sleep(20)
 
         except asyncio.CancelledError:
             print(f"Tracking para o jogo {game_api_id} terminado.")
@@ -120,7 +119,6 @@ async def websocket_endpoint(
     jogo_id: int = Path(..., description="O ID INTERNO (do banco de dados) do jogo a ser acompanhado."),
     db: Session = Depends(get_db)
 ):
-    # Busca o jogo no nosso banco de dados para obter o ID da API
     db_jogo = crud.get_jogo(db, jogo_id=jogo_id)
     if not db_jogo or not db_jogo.api_id:
         await websocket.close(code=1008, reason="Jogo não encontrado ou sem ID da API.")
@@ -156,8 +154,15 @@ def create_jogo(jogo: schemas.JogoCreate, db: Session = Depends(get_db)):
     return crud.create_jogo(db=db, jogo=jogo)
 
 @router.get("/", response_model=List[schemas.Jogo])
-def read_jogos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return crud.get_jogos(db, skip=skip, limit=limit)
+def read_jogos(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    time_id: Optional[int] = None,
+    data: Optional[date] = None,
+    status: Optional[str] = None,
+):
+    return crud.get_jogos(db, skip=skip, limit=limit, time_id=time_id, data=data, status=status)
 
 @router.get("/slug/{slug}", response_model=schemas.Jogo)
 def read_jogo_by_slug(slug: str, db: Session = Depends(get_db)):
@@ -172,3 +177,27 @@ def read_jogo_estatisticas_gerais(jogo_id: int, db: Session = Depends(get_db)):
     if stats is None:
         raise HTTPException(status_code=404, detail="Estatísticas não encontradas para este jogo")
     return stats
+
+@router.post(
+    "/{jogo_id}/avaliacoes/",
+    response_model=schemas.AvaliacaoJogo,
+    summary="Criar uma nova avaliação para um jogo",
+    description="Permite que um utilizador autenticado envie uma nova avaliação para um jogo específico."
+)
+def create_avaliacao_for_jogo(
+    jogo_id: int,
+    avaliacao: schemas.AvaliacaoJogoCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    db_avaliacao_existente = db.query(models.Avaliacao_Jogo).filter(
+        models.Avaliacao_Jogo.jogo_id == jogo_id,
+        models.Avaliacao_Jogo.usuario_id == current_user.id
+    ).first()
+    if db_avaliacao_existente:
+        raise HTTPException(
+            status_code=400,
+            detail="Você já avaliou este jogo."
+        )
+
+    return crud.create_avaliacao_jogo(db=db, avaliacao=avaliacao, usuario_id=current_user.id, jogo_id=jogo_id)

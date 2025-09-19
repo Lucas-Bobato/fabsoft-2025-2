@@ -14,3 +14,13 @@ def generate_slug(text: str) -> str:
     text = re.sub(r'[^\w\s-]', '', text).strip().lower()
     text = re.sub(r'[-\s]+', '-', text)
     return text
+
+def normalize_text(text: str) -> str:
+    """
+    Normaliza o texto removendo acentos e convertendo para minúsculas.
+    Ex: "Luka Dončić" -> "luka doncic"
+    """
+    if not isinstance(text, str):
+        return ""
+    return ''.join(c for c in unicodedata.normalize('NFD', text)
+                   if unicodedata.category(c) != 'Mn').lower()
