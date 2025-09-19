@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation"; // 1. Importar o useSearchParams
 import Link from "next/link";
 import api from "@/services/api";
 import Image from "next/image";
@@ -76,12 +76,23 @@ const StatsTabs = ({ game, reviews, onDataChange }) => {
         >
           Box Score
         </button>
+        <button
+          onClick={() => setActiveTab("playbyplay")}
+          className={`py-2 px-4 font-semibold transition-colors duration-200 ${
+            activeTab === "playbyplay"
+              ? "text-white border-b-2 border-[#8B1E3F]"
+              : "text-gray-400"
+          }`}
+        >
+          Play-by-Play
+        </button>
       </div>
       <div id="tab-content">
         {activeTab === "reviews" && (
           <ReviewsList reviews={reviews} onDataChange={onDataChange} />
         )}
         {activeTab === "boxscore" && <BoxScore gameId={game.id} />}
+        {activeTab === "playbyplay" && <BoxScore gameId={game.id} />}
       </div>
     </section>
   );
@@ -89,11 +100,12 @@ const StatsTabs = ({ game, reviews, onDataChange }) => {
 
 export default function GameDetailsPage() {
   const params = useParams();
+  const searchParams = useSearchParams(); // 2. Inicializar o hook
   const { slug } = params;
   const { isAuthenticated } = useAuth();
   const [game, setGame] = useState(null);
   const [reviews, setReviews] = useState([]);
-  const [gameStats, setGameStats] = useState(null); // Novo estado para as estatísticas
+  const [gameStats, setGameStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -106,7 +118,6 @@ export default function GameDetailsPage() {
       const gameData = gameRes.data;
       setGame(gameData);
 
-      // Busca as avaliações e as estatísticas em paralelo
       const [reviewsRes, statsRes] = await Promise.all([
         api.get(`/jogos/${gameData.id}/avaliacoes/`),
         api.get(`/jogos/${gameData.id}/estatisticas-gerais`),
@@ -125,6 +136,21 @@ export default function GameDetailsPage() {
     fetchGameData();
   }, [fetchGameData]);
 
+  // Efeito para destacar a avaliação a partir da URL
+  useEffect(() => {
+    const reviewId = searchParams.get("review");
+    if (reviewId && reviews.length > 0) {
+      const element = document.getElementById(`review-${reviewId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        element.classList.add("highlight-review");
+        setTimeout(() => {
+          element.classList.remove("highlight-review");
+        }, 3000); // Remove o destaque após 3 segundos
+      }
+    }
+  }, [searchParams, reviews]);
+
   if (loading)
     return (
       <div className="text-center py-10">Carregando detalhes do jogo...</div>
@@ -141,7 +167,6 @@ export default function GameDetailsPage() {
           <GameDetailsHeader game={game} />
         </div>
 
-        {/* Renderiza o novo componente de estatísticas */}
         <GameStats stats={gameStats} game={game} />
 
         {isAuthenticated && (
@@ -153,7 +178,6 @@ export default function GameDetailsPage() {
           </button>
         )}
 
-        {/* Abas de Avaliações e Box Score */}
         <StatsTabs game={game} reviews={reviews} onDataChange={fetchGameData} />
       </div>
 

@@ -5,6 +5,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { Search } from "lucide-react";
 
+const normalizeText = (text) => {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+};
+
 export default function JogadoresPage() {
   const [players, setPlayers] = useState([]);
   const [filteredPlayers, setFilteredPlayers] = useState([]);
@@ -27,9 +34,9 @@ export default function JogadoresPage() {
   }, []);
 
   useEffect(() => {
+    const normalizedSearchTerm = normalizeText(searchTerm);
     const results = players.filter((player) =>
-      // Use nome_normalizado para a busca (não diferencia maiúsculas/minúsculas)
-      player.nome_normalizado.toLowerCase().includes(searchTerm.toLowerCase())
+      normalizeText(player.nome_normalizado).includes(normalizedSearchTerm)
     );
     setFilteredPlayers(results);
   }, [searchTerm, players]);

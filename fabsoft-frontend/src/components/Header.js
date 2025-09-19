@@ -72,10 +72,10 @@ export default function Header() {
               Jogadores
             </Link>
             <Link
-              href="/atividades"
+              href="/jogos"
               className="text-gray-300 hover:text-white font-semibold transition-colors text-sm hidden sm:block"
             >
-              Atividades
+              Jogos
             </Link>
 
             {isAuthenticated && user ? (

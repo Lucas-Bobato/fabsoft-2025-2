@@ -3,8 +3,10 @@ import { useState } from "react";
 import api from "@/services/api";
 import TeamSelector from "./TeamSelector";
 import Image from "next/image";
+import { useAuth } from "@/context/AuthContext";
 
 export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
+  const { updateUser } = useAuth();
   const [formData, setFormData] = useState({
     nome_completo: user.nome_completo || "",
     bio: user.bio || "",
@@ -42,7 +44,6 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
     let updatedData = { ...formData };
 
     try {
-      // 1. Se houver uma nova imagem, faz o upload primeiro
       if (newProfilePic) {
         const uploadFormData = new FormData();
         uploadFormData.append("file", newProfilePic);
@@ -56,11 +57,10 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
         updatedData.foto_perfil = uploadResponse.data.file_url;
       }
 
-      // 2. Envia os dados do perfil (incluindo a nova URL da foto, se houver)
-      await api.put("/usuarios/me", updatedData);
-
-      onProfileUpdate(); // Avisa a página de perfil para recarregar os dados
-      onClose(); // Fecha o modal
+      const response = await api.put("/usuarios/me", updatedData);
+      updateUser(response.data); // Atualiza o estado global do usuário
+      onProfileUpdate();
+      onClose();
     } catch (error) {
       console.error("Erro ao atualizar o perfil:", error);
       alert("Não foi possível atualizar o perfil. Tente novamente.");
@@ -143,7 +143,6 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Time Favorito
             </label>
-            {/* O TeamSelector precisa ser ajustado para funcionar dentro do formulário */}
             <TeamSelector
               onConfirm={handleTeamSelect}
               initialSelectedTeamId={formData.time_favorito_id}

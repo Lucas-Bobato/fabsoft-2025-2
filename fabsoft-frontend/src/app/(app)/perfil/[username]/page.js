@@ -180,7 +180,6 @@ const allAchievements = {
 };
 
 export default function ProfilePage() {
-  // ... (toda a lógica de hooks, fetch e handlers continua a mesma da versão anterior)
   const params = useParams();
   const { username } = params;
   const { user: currentUser } = useAuth();
@@ -272,6 +271,24 @@ export default function ProfilePage() {
     }
   };
 
+  const handleShare = async () => {
+    const shareData = {
+      title: `Perfil de ${profile.username} no SlamTalk`,
+      text: `Confira o perfil e as avaliações de ${profile.username}!`,
+      url: window.location.href,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        alert("Link do perfil copiado para a área de transferência!");
+      }
+    } catch (err) {
+      console.error("Erro ao compartilhar:", err);
+    }
+  };
+
   if (loading) return <p className="text-center mt-8">Carregando perfil...</p>;
   if (!profile)
     return (
@@ -287,7 +304,7 @@ export default function ProfilePage() {
   );
   const maxRatingCount = stats
     ? Math.max(1, ...Object.values(stats.distribuicao_notas))
-    : 1; // Garante que não seja 0 para evitar divisão por zero
+    : 1;
   const ratingColors = {
     5: "#4ade80",
     4: "#a3e635",
@@ -297,7 +314,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <main className="p-6 md:p-8">
+    <main className="container mx-auto px-6 py-8 max-w-screen-xl">
       {modal.isOpen && (
         <FollowModal
           title={modal.type}
@@ -313,7 +330,6 @@ export default function ProfilePage() {
         />
       )}
 
-      {/* ========== HEADER ATUALIZADO ========== */}
       <header
         className="rounded-xl p-6 flex flex-col md:flex-row items-center justify-between"
         style={{
@@ -352,7 +368,6 @@ export default function ProfilePage() {
             <p className="text-gray-400">@{profile.username}</p>
           </div>
         </div>
-        {/* --- Bloco de Ações e Seguidores Agrupado e Empilhado --- */}
         <div className="flex flex-col items-end gap-4 mt-4 md:mt-0">
           <div className="flex items-center gap-4">
             {isMyProfile ? (
@@ -375,7 +390,10 @@ export default function ProfilePage() {
                 {isFollowing ? "Seguindo" : "Seguir"}
               </button>
             )}
-            <Share2 className="h-6 w-6 text-gray-400 cursor-pointer hover:text-white" />
+            <Share2
+              className="h-6 w-6 text-gray-400 cursor-pointer hover:text-white"
+              onClick={handleShare}
+            />
           </div>
           <div className="bg-gray-700/50 rounded-lg p-2 flex items-center gap-6 text-center">
             <div
@@ -444,7 +462,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* ========== CARDS DE ESTATÍSTICAS ATUALIZADOS ========== */}
       {loadingStats || !stats ? (
         <div className="text-center py-10">Carregando estatísticas...</div>
       ) : (
@@ -461,7 +478,6 @@ export default function ProfilePage() {
             </p>
             <p className="text-gray-400 text-sm">Média</p>
           </div>
-          {/* --- Card de Distribuição com Gráfico Vertical --- */}
           <div className="bg-[#2D3748] rounded-xl p-4 md:col-span-1">
             <h2 className="text-md font-bold text-center mb-3">
               Distribuição de Notas

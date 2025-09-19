@@ -46,11 +46,9 @@ export const AuthProvider = ({ children }) => {
       router.push("/");
     } catch (error) {
       console.error("Erro de login:", error);
-      // Extrai a mensagem de erro do backend ou usa uma padrão
       const errorMessage =
         error.response?.data?.detail ||
         "Falha no login. Verifique suas credenciais.";
-      // Lança o erro novamente para que o componente de UI possa capturá-lo
       throw new Error(errorMessage);
     }
   };
@@ -80,6 +78,10 @@ export const AuthProvider = ({ children }) => {
     router.push("/login");
   };
 
+  const updateUser = (updatedUserData) => {
+    setUser((prevUser) => ({ ...prevUser, ...updatedUserData }));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -89,6 +91,7 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         logout,
+        updateUser,
       }}
     >
       {children}
