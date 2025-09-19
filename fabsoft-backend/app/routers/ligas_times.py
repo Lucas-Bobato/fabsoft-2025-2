@@ -67,3 +67,13 @@ def read_time_details(time_slug: str, db: Session = Depends(get_db)):
     if not time_details:
         raise HTTPException(status_code=404, detail="Detalhes do time não encontrados")
     return time_details
+
+@router.get("/times/{time_slug}/schedule", response_model=schemas.Schedule)
+def read_time_schedule(time_slug: str, db: Session = Depends(get_db)):
+    """
+    Obtém os últimos jogos e os próximos jogos de um time.
+    """
+    db_time = crud.get_time_by_slug(db, time_slug=time_slug)
+    if db_time is None:
+        raise HTTPException(status_code=404, detail="Time não encontrado")
+    return crud.get_schedule_for_time(db, time_id=db_time.id)

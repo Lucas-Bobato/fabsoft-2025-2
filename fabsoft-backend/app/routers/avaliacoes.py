@@ -19,8 +19,6 @@ def read_avaliacoes_for_jogo(
     avaliacoes = crud.get_avaliacoes_por_jogo(db, jogo_id=jogo_id, usuario_id_logado=user_id, skip=skip, limit=limit)
     return avaliacoes
 
-# --- Endpoints para Estatísticas ---
-
 @router.post("/jogos/{jogo_id}/estatisticas/", response_model=schemas.Estatistica)
 def create_estatistica_for_jogo(
     jogo_id: int,

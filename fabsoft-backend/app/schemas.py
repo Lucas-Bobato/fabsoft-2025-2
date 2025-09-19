@@ -173,6 +173,7 @@ class UsuarioSimple(BaseModel):
     id: int
     username: str
     foto_perfil: Optional[str] = None
+    nivel_usuario: NivelUsuario
     model_config = {"from_attributes": True}
 
 # --- Schemas para Avaliacao_Jogo ---
@@ -424,6 +425,7 @@ class UsuarioUpdate(BaseModel):
     nome_completo: Optional[str] = None
     bio: Optional[str] = None
     time_favorito_id: Optional[int] = None
+    foto_perfil: Optional[str] = None
 
 class UsuarioSocialInfo(UsuarioSimple):
     is_followed_by_current_user: bool = False
@@ -432,3 +434,7 @@ class UserStats(BaseModel):
     total_avaliacoes: int
     media_geral: float
     distribuicao_notas: dict[int, int]
+    
+class Schedule(BaseModel):
+    recent: List[Jogo]
+    upcoming: List[Jogo]

@@ -5,6 +5,7 @@ from typing import List, Optional, Union
 from . import models, schemas, security
 from .models import NivelUsuario
 from .utils import generate_slug
+import os
 
 def get_user(db: Session, user_id: int):
     return db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
@@ -70,6 +71,25 @@ def get_user_profile_by_username(db: Session, username: str, start_date: Optiona
     profile_data = schemas.UsuarioProfile.model_validate(user_data)
 
     return profile_data
+
+def update_user(db: Session, user_id: int, user_data: schemas.UsuarioUpdate):
+    db_user = db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
+    if not db_user:
+        return None
+    
+    update_data = user_data.model_dump(exclude_unset=True)
+
+    if "foto_perfil" in update_data and db_user.foto_perfil:
+        old_photo_path = db_user.foto_perfil.lstrip('/')
+        if os.path.exists(old_photo_path):
+            os.remove(old_photo_path)
+            
+    for key, value in update_data.items():
+        setattr(db_user, key, value)
+        
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
 # --- Funções CRUD para Liga ---
 
@@ -234,6 +254,7 @@ def get_jogador_details(db: Session, jogador_slug: str):
     jogador_data = {
         "id": db_jogador.id,
         "api_id": db_jogador.api_id,
+        "nome": db_jogador.nome,
         "nome_normalizado": db_jogador.nome_normalizado,
         "slug": db_jogador.slug,
         "numero_camisa": db_jogador.numero_camisa,
@@ -893,6 +914,11 @@ def check_conquistas_para_usuario(db: Session, usuario_id: int):
 
     uma_semana_atras = datetime.now() - timedelta(days=7)
     avaliacoes_na_semana = 0
+    
+    RIVALRIES = [
+        (2, 14),  # Celtics vs Lakers
+        (17, 7),  # Knicks vs Bulls
+    ]
 
     for av in avaliacoes:
         # Jogo da Temporada (Nota 5.0)
@@ -918,6 +944,13 @@ def check_conquistas_para_usuario(db: Session, usuario_id: int):
         # Maratonista
         if av.data_avaliacao.date() > uma_semana_atras.date():
             avaliacoes_na_semana += 1
+            
+        # Rivalidade Histórica
+        for team1, team2 in RIVALRIES:
+            if (av.jogo.time_casa.api_id == team1 and av.jogo.time_visitante.api_id == team2) or \
+               (av.jogo.time_casa.api_id == team2 and av.jogo.time_visitante.api_id == team1):
+                grant_conquista_usuario(db, usuario_id, 11)
+
 
     if avaliacoes_time_favorito >= 1: grant_conquista_usuario(db, usuario_id, 5)
     if avaliacoes_time_favorito >= 25: grant_conquista_usuario(db, usuario_id, 17)
@@ -1103,3 +1136,21 @@ def get_user_stats(db: Session, user_id: int, start_date: Optional[date] = None,
             distribuicao[nota_arredondada] += 1
             
     return schemas.UserStats(total_avaliacoes=total_avaliacoes, media_geral=media_geral, distribuicao_notas=distribuicao)
+
+def get_schedule_for_time(db: Session, time_id: int):
+    """
+    Busca os últimos 2 jogos e os próximos 2 jogos de um time.
+    """
+    now = datetime.now()
+    
+    recent_games = db.query(models.Jogo).filter(
+        (models.Jogo.time_casa_id == time_id) | (models.Jogo.time_visitante_id == time_id),
+        models.Jogo.data_jogo < now
+    ).order_by(models.Jogo.data_jogo.desc()).limit(2).all()
+    
+    upcoming_games = db.query(models.Jogo).filter(
+        (models.Jogo.time_casa_id == time_id) | (models.Jogo.time_visitante_id == time_id),
+        models.Jogo.data_jogo >= now
+    ).order_by(models.Jogo.data_jogo.asc()).limit(2).all()
+    
+    return schemas.Schedule(recent=recent_games, upcoming=upcoming_games)
