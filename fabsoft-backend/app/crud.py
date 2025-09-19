@@ -159,7 +159,7 @@ def get_jogador_by_slug(db: Session, jogador_slug: str):
 
 def create_jogador_com_details(db: Session, jogador: schemas.JogadorCreateComDetails):
     jogador_data = jogador.model_dump()
-    jogador_data["slug"] = generate_slug(jogador.nome)
+    jogador_data["slug"] = generate_slug(jogador.nome_normalizado)
     db_jogador = models.Jogador(**jogador_data)
     db.add(db_jogador)
     db.commit()
@@ -234,7 +234,7 @@ def get_jogador_details(db: Session, jogador_slug: str):
     jogador_data = {
         "id": db_jogador.id,
         "api_id": db_jogador.api_id,
-        "nome": db_jogador.nome,
+        "nome_normalizado": db_jogador.nome_normalizado,
         "slug": db_jogador.slug,
         "numero_camisa": db_jogador.numero_camisa,
         "posicao": db_jogador.posicao,
@@ -952,7 +952,7 @@ def perform_advanced_search(
     # Se critérios de jogador forem fornecidos, busca jogadores
     if nome_jogador:
         query_jogador = db.query(models.Jogador)
-        query_jogador = query_jogador.filter(models.Jogador.nome.ilike(f"%{nome_jogador}%"))
+        query_jogador = query_jogador.filter(models.Jogador.nome_normalizado.ilike(f"%{nome_jogador}%"))
         resultados.extend(query_jogador.limit(10).all())
 
     # Se critérios de jogo forem fornecidos, busca jogos

@@ -28,7 +28,8 @@ export default function JogadoresPage() {
 
   useEffect(() => {
     const results = players.filter((player) =>
-      player.nome.toLowerCase().includes(searchTerm.toLowerCase())
+      // Use nome_normalizado para a busca (não diferencia maiúsculas/minúsculas)
+      player.nome_normalizado.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredPlayers(results);
   }, [searchTerm, players]);

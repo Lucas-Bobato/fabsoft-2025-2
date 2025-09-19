@@ -66,7 +66,7 @@ const PlayerProfilePage = () => {
       >
         <Image
           src={player.foto_url || "/placeholder.png"}
-          alt={`Foto de ${player.nome}`}
+          alt={`Foto de ${player.nome_normalizado}`}
           width={128}
           height={128}
           className="w-32 h-32 rounded-full object-cover border-4 border-white/20 bg-gray-700"

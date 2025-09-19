@@ -109,6 +109,7 @@ def sync_nba_players(db: Session):
                     db_jogador = crud.create_jogador_com_details(db, jogador=schemas.JogadorCreateComDetails(
                         api_id=player_summary['PERSON_ID'],
                         nome=player_summary['DISPLAY_FIRST_LAST'],
+                        nome_normalizado=player_summary['DISPLAY_FIRST_LAST'].lower(),
                         time_atual_id=time_local.id,
                         foto_url=foto_url,
                         posicao=posicao,

@@ -49,6 +49,7 @@ class TimeRecord(BaseModel):
 class JogadorBase(BaseModel):
     api_id: Optional[int] = None
     nome: str
+    nome_normalizado: str
     numero_camisa: Optional[int] = None
     posicao: Optional[str] = None
     foto_url: Optional[str] = None
@@ -105,6 +106,7 @@ class JogadorDetails(Jogador):
 class JogadorRoster(BaseModel):
     id: int
     nome: str
+    nome_normalizado: str
     slug: str
     numero_camisa: Optional[int] = None
     posicao: Optional[str] = None

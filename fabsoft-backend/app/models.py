@@ -61,6 +61,7 @@ class Jogador(Base):
     id = Column(Integer, primary_key=True, index=True)
     api_id = Column(Integer, unique=True, index=True, nullable=True)
     nome = Column(String, nullable=False)
+    nome_normalizado = Column(String, nullable=False)
     slug = Column(String, unique=True, index=True, nullable=True)
     numero_camisa = Column(Integer)
     posicao = Column(String)
