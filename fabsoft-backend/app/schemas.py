@@ -204,6 +204,7 @@ class AvaliacaoJogo(AvaliacaoJogoBase):
     data_avaliacao: datetime
     curtidas: int
     usuario: UsuarioSimple
+    jogo: Jogo
     curtido_pelo_usuario_atual: bool = False
     model_config = {"from_attributes": True}
     
