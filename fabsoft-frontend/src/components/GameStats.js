@@ -10,6 +10,7 @@ import {
   UserX,
 } from "lucide-react";
 import Link from "next/link";
+import { Card, Box, Grid, Flex, Text, Avatar } from "@radix-ui/themes";
 
 // Ícone para Arbitragem
 const WhistleIcon = (props) => (
@@ -37,145 +38,160 @@ const PlayerHighlightCard = ({ player, votes, type }) => {
   const isMvp = type === "mvp";
 
   return (
-    <div
-      className={`text-center p-4 rounded-lg ${
-        isMvp ? "bg-green-900/50" : "bg-red-900/50"
-      }`}
+    <Card 
+      style={{
+        backgroundColor: isMvp ? "rgba(34, 197, 94, 0.1)" : "rgba(239, 68, 68, 0.1)",
+        borderColor: isMvp ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"
+      }}
     >
-      <div className="flex items-center justify-center gap-2 mb-2">
-        {isMvp ? (
-          <Award className="text-yellow-400" />
-        ) : (
-          <UserX className="text-red-400" />
-        )}
-        <h4 className="font-bold">{isMvp ? "Destaque (MVP)" : "Decepção"}</h4>
-      </div>
+      <Flex direction="column" align="center" gap="3" p="4">
+        <Flex align="center" gap="2">
+          {isMvp ? (
+            <Award color="gold" size={20} />
+          ) : (
+            <UserX color="crimson" size={20} />
+          )}
+          <Text size="3" weight="bold">
+            {isMvp ? "Destaque (MVP)" : "Decepção"}
+          </Text>
+        </Flex>
 
-      <Link
-        href={`/jogadores/${player.slug}`}
-        className="relative inline-block"
-      >
-        <Image
-          src={player.foto_url || "/placeholder.png"}
-          alt={player.nome}
-          width={80}
-          height={80}
-          className="w-20 h-20 rounded-full mx-auto object-cover bg-gray-700 mb-2 border-2 border-gray-600"
-        />
-        {player.time_atual && (
-          <Image
-            src={player.time_atual.logo_url}
-            alt={player.time_atual.nome}
-            width={32}
-            height={32}
-            className="w-8 h-8 rounded-full absolute -bottom-1 -right-1"
-          />
-        )}
-      </Link>
+        <Link href={`/jogadores/${player.slug}`} className="relative">
+          <Box position="relative">
+            <Avatar
+              src={player.foto_url || "/placeholder.png"}
+              alt={player.nome}
+              size="6"
+              fallback={player.nome.split(' ').map(n => n[0]).join('')}
+            />
+            {player.time_atual && (
+              <Box position="absolute" style={{ bottom: "-4px", right: "-4px" }}>
+                <Avatar
+                  src={player.time_atual.logo_url}
+                  alt={player.time_atual.nome}
+                  size="2"
+                  fallback="T"
+                />
+              </Box>
+            )}
+          </Box>
+        </Link>
 
-      <Link
-        href={`/jogadores/${player.slug}`}
-        className="font-semibold text-white hover:underline mt-2 block"
-      >
-        {player.nome}
-      </Link>
-      <p className="text-xs text-gray-400">
-        {votes} {votes === 1 ? "voto" : "votos"}
-      </p>
-    </div>
+        <Flex direction="column" align="center" gap="1">
+          <Link href={`/jogadores/${player.slug}`}>
+            <Text size="3" weight="medium" className="hover:underline">
+              {player.nome}
+            </Text>
+          </Link>
+          <Text size="2" color="gray">
+            {votes} {votes === 1 ? "voto" : "votos"}
+          </Text>
+        </Flex>
+      </Flex>
+    </Card>
   );
 }
 
 const RatingRow = ({ label, score, icon: Icon, colorClass }) => (
-  <div className="flex justify-between items-center text-sm">
-    <p className="text-gray-400">{label}</p>
-    <div className="flex items-center gap-2">
+  <Flex justify="between" align="center">
+    <Text size="3" color="gray">{label}</Text>
+    <Flex align="center" gap="2">
       <IconRatingDisplay score={score} icon={Icon} colorClass={colorClass} />
-      <span className="font-bold w-8">{score.toFixed(1)}</span>
-    </div>
-  </div>
+      <Text size="3" weight="bold" style={{ minWidth: "32px", textAlign: "right" }}>
+        {score.toFixed(1)}
+      </Text>
+    </Flex>
+  </Flex>
 );
 
 export default function GameStats({ stats, game }) {
   if (!stats) return null;
 
   return (
-    <div className="bg-black/20 p-6 rounded-lg border border-gray-800 space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Coluna de Médias Gerais */}
-        <div className="space-y-3">
-          <h3 className="font-bold text-lg mb-2">Médias da Comunidade</h3>
-          <RatingRow
-            label="Partida"
-            score={stats.media_geral}
-            icon={Star}
-            colorClass="text-yellow-400"
-          />
-          <RatingRow
-            label="Arbitragem"
-            score={stats.media_arbitragem}
-            icon={WhistleIcon}
-            colorClass="text-red-500"
-          />
-          <RatingRow
-            label="Atmosfera"
-            score={stats.media_atmosfera}
-            icon={Drum}
-            colorClass="text-orange-400"
-          />
-        </div>
+    <Card>
+      <Flex direction="column" gap="6" p="6">
+        <Grid columns={{ initial: "1", md: "3" }} gap="6">
+          {/* Coluna de Médias Gerais */}
+          <Flex direction="column" gap="3">
+            <Text size="5" weight="bold" mb="2">Médias da Comunidade</Text>
+            <RatingRow
+              label="Partida"
+              score={stats.media_geral}
+              icon={Star}
+              colorClass="text-yellow-400"
+            />
+            <RatingRow
+              label="Arbitragem"
+              score={stats.media_arbitragem}
+              icon={WhistleIcon}
+              colorClass="text-red-500"
+            />
+            <RatingRow
+              label="Atmosfera"
+              score={stats.media_atmosfera}
+              icon={Drum}
+              colorClass="text-orange-400"
+            />
+          </Flex>
 
-        {/* Coluna de Time Visitante */}
-        <div className="space-y-3">
-          <h3 className="font-bold text-lg mb-2">{game.time_visitante.nome}</h3>
-          <RatingRow
-            label="Ataque"
-            score={stats.media_ataque_visitante}
-            icon={Swords}
-            colorClass="text-[#F97316]"
-          />
-          <RatingRow
-            label="Defesa"
-            score={stats.media_defesa_visitante}
-            icon={Shield}
-            colorClass="text-blue-500"
-          />
-        </div>
+          {/* Coluna de Time Visitante */}
+          <Flex direction="column" gap="3">
+            <Text size="5" weight="bold" mb="2">{game.time_visitante.nome}</Text>
+            <RatingRow
+              label="Ataque"
+              score={stats.media_ataque_visitante}
+              icon={Swords}
+              colorClass="text-[#F97316]"
+            />
+            <RatingRow
+              label="Defesa"
+              score={stats.media_defesa_visitante}
+              icon={Shield}
+              colorClass="text-blue-500"
+            />
+          </Flex>
 
-        {/* Coluna de Time da Casa */}
-        <div className="space-y-3">
-          <h3 className="font-bold text-lg mb-2">{game.time_casa.nome}</h3>
-          <RatingRow
-            label="Ataque"
-            score={stats.media_ataque_casa}
-            icon={Swords}
-            colorClass="text-[#F97316]"
-          />
-          <RatingRow
-            label="Defesa"
-            score={stats.media_defesa_casa}
-            icon={Shield}
-            colorClass="text-blue-500"
-          />
-        </div>
-      </div>
+          {/* Coluna de Time da Casa */}
+          <Flex direction="column" gap="3">
+            <Text size="5" weight="bold" mb="2">{game.time_casa.nome}</Text>
+            <RatingRow
+              label="Ataque"
+              score={stats.media_ataque_casa}
+              icon={Swords}
+              colorClass="text-[#F97316]"
+            />
+            <RatingRow
+              label="Defesa"
+              score={stats.media_defesa_casa}
+              icon={Shield}
+              colorClass="text-blue-500"
+            />
+          </Flex>
+        </Grid>
 
-      {/* Seção de Jogadores Mais Votados */}
-      {(stats.mvp_mais_votado?.jogador ||
-        stats.decepcao_mais_votada?.jogador) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-800">
-          <PlayerHighlightCard
-            player={stats.mvp_mais_votado.jogador}
-            votes={stats.mvp_mais_votado.votos}
-            type="mvp"
-          />
-          <PlayerHighlightCard
-            player={stats.decepcao_mais_votada.jogador}
-            votes={stats.decepcao_mais_votada.votos}
-            type="decepcao"
-          />
-        </div>
-      )}
-    </div>
+        {/* Seção de Jogadores Mais Votados */}
+        {(stats.mvp_mais_votado?.jogador ||
+          stats.decepcao_mais_votada?.jogador) && (
+          <Box pt="4" style={{ borderTop: "1px solid var(--gray-6)" }}>
+            <Grid columns={{ initial: "1", md: "2" }} gap="4">
+              {stats.mvp_mais_votado?.jogador && (
+                <PlayerHighlightCard
+                  player={stats.mvp_mais_votado.jogador}
+                  votes={stats.mvp_mais_votado.votos}
+                  type="mvp"
+                />
+              )}
+              {stats.decepcao_mais_votada?.jogador && (
+                <PlayerHighlightCard
+                  player={stats.decepcao_mais_votada.jogador}
+                  votes={stats.decepcao_mais_votada.votos}
+                  type="decepcao"
+                />
+              )}
+            </Grid>
+          </Box>
+        )}
+      </Flex>
+    </Card>
   );
 }

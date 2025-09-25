@@ -1,26 +1,12 @@
-import Link from 'next/link';
-import Image from 'next/image';
-
-const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-    });
-};
+import Link from "next/link";
+import { Card, Flex, Box, Text, Avatar, Heading } from "@radix-ui/themes";
+import { StarIcon } from "@radix-ui/react-icons";
 
 export default function GameCard({ gameData }) {
-  // Agora recebemos o objeto completo 'gameData'
   const {
-    id,
     slug,
     data_jogo,
     temporada,
-    liga_id,
-    time_casa_id,
-    time_visitante_id,
-    arena,
-    status_jogo,
     placar_casa,
     placar_visitante,
     time_casa,
@@ -29,79 +15,93 @@ export default function GameCard({ gameData }) {
     media_geral,
   } = gameData;
 
-    if (!time_casa || !time_visitante) {
-      return null;
-    }
+  if (!time_casa || !time_visitante) {
+    return null;
+  }
 
   const averageRating = media_geral || 0;
-  const ratingColor =
-    averageRating > 8.5
-      ? "text-green-400"
-      : averageRating > 7.0
-      ? "text-yellow-400"
-      : "text-gray-500";
+  const getRatingColor = (rating) => {
+    if (rating >= 4.5) return "var(--green-9)";
+    if (rating >= 3.5) return "var(--yellow-9)";
+    if (rating > 0) return "var(--orange-9)";
+    return "var(--gray-9)";
+  };
 
   return (
-    <Link href={`/jogos/${slug || `game-${id}`}`} className="block">
-      <div className="game-card bg-[#133B5C]/70 p-5 rounded-xl border border-gray-700 flex flex-col justify-between transition-all duration-300 h-full">
-        <div>
-          <p className="text-sm text-gray-400 mb-3 text-center font-medium uppercase">
-            {temporada}
-          </p>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Image
-                  src={time_casa.logo_url}
-                  alt={time_casa.nome}
-                  width={32}
-                  height={32}
-                  className="w-8 h-8"
-                />
-                <span className="font-semibold">{time_casa.nome}</span>
-              </div>
-              <span className="font-bold text-2xl">{placar_casa}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Image
-                  src={time_visitante.logo_url}
-                  alt={time_visitante.nome}
-                  width={32}
-                  height={32}
-                  className="w-8 h-8"
-                />
-                <span className="font-semibold">{time_visitante.nome}</span>
-              </div>
-              <span className="font-bold text-2xl">{placar_visitante}</span>
-            </div>
-          </div>
-        </div>
-        <div className="flex items-end justify-between mt-4 pt-4 border-t border-gray-700/50">
-          <div>
-            <p className="text-sm">
-              {new Date(data_jogo).toLocaleDateString("pt-BR")}
-            </p>
-          </div>
-          <div className="text-right">
-            {total_avaliacoes > 0 ? (
-              <>
-                <p className={`font-bold text-lg ${ratingColor}`}>
-                  {averageRating.toFixed(2)}
-                </p>
-                <p className="text-xs text-gray-400">
-                  {total_avaliacoes}{" "}
-                  {total_avaliacoes === 1 ? "avaliação" : "avaliações"}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm font-semibold text-gray-400">
-                Seja o primeiro a avaliar!
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
+    <Link href={`/jogos/${slug}`} passHref>
+      <Card asChild>
+        <a style={{ textDecoration: "none", height: "100%" }}>
+          <Flex direction="column" justify="between" style={{ height: "100%" }}>
+            <Box>
+              <Text as="p" size="1" color="gray" align="center" mb="3">
+                {temporada}
+              </Text>
+              <Flex direction="column" gap="3">
+                <Flex justify="between" align="center">
+                  <Flex align="center" gap="3">
+                    <Avatar
+                      src={time_casa.logo_url}
+                      fallback={time_casa.sigla}
+                      size="2"
+                    />
+                    <Text weight="bold">{time_casa.nome}</Text>
+                  </Flex>
+                  <Heading size="5">{placar_casa}</Heading>
+                </Flex>
+                <Flex justify="between" align="center">
+                  <Flex align="center" gap="3">
+                    <Avatar
+                      src={time_visitante.logo_url}
+                      fallback={time_visitante.sigla}
+                      size="2"
+                    />
+                    <Text weight="bold">{time_visitante.nome}</Text>
+                  </Flex>
+                  <Heading size="5">{placar_visitante}</Heading>
+                </Flex>
+              </Flex>
+            </Box>
+            <Flex
+              align="end"
+              justify="between"
+              mt="4"
+              pt="3"
+              style={{ borderTop: "1px solid var(--gray-a5)" }}
+            >
+              <Text size="1" color="gray">
+                {new Date(data_jogo).toLocaleDateString("pt-BR")}
+              </Text>
+              <Box>
+                {total_avaliacoes > 0 ? (
+                  <Flex direction="column" align="end" gap="1">
+                    <Flex align="center" gap="1">
+                      <StarIcon
+                        width="16"
+                        height="16"
+                        color={getRatingColor(averageRating)}
+                      />
+                      <Text
+                        weight="bold"
+                        style={{ color: getRatingColor(averageRating) }}
+                      >
+                        {averageRating.toFixed(1)}
+                      </Text>
+                    </Flex>
+                    <Text size="1" color="gray">
+                      {total_avaliacoes}{" "}
+                      {total_avaliacoes === 1 ? "avaliação" : "avaliações"}
+                    </Text>
+                  </Flex>
+                ) : (
+                  <Text size="1" color="gray">
+                    Seja o primeiro a avaliar!
+                  </Text>
+                )}
+              </Box>
+            </Flex>
+          </Flex>
+        </a>
+      </Card>
     </Link>
   );
 }

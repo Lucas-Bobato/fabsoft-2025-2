@@ -5,6 +5,18 @@ import GameCard from "@/components/GameCard";
 import UpcomingGameCard from "@/components/UpcomingGameCard";
 import Link from "next/link";
 
+import {
+  Grid,
+  Card,
+  Flex,
+  Heading,
+  Text,
+  Tabs,
+  Box,
+  Spinner,
+  Link as RadixLink,
+} from "@radix-ui/themes";
+
 export default function HomePage() {
   const [trendingGames, setTrendingGames] = useState([]);
   const [upcomingGames, setUpcomingGames] = useState([]);
@@ -39,108 +51,103 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="container mx-auto px-6 py-8 max-w-screen-xl">
-      <div className="flex justify-center mb-8">
-        <div className="bg-gray-800 p-1 rounded-full">
-          <button
-            onClick={() => setActiveTab("foryou")}
-            className={`px-4 py-1 rounded-full text-sm font-semibold ${
-              activeTab === "foryou" ? "bg-gray-600" : ""
-            }`}
-          >
-            Para Você
-          </button>
-          <button
-            onClick={() => setActiveTab("following")}
-            className={`px-4 py-1 rounded-full text-sm font-semibold ${
-              activeTab === "following" ? "bg-gray-600" : ""
-            }`}
-          >
-            Seguindo
-          </button>
-        </div>
-      </div>
+    <Box maxWidth="1280px" mx="auto" px="6" py="6">
+      <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
+        <Tabs.List align="center" size="2">
+          <Tabs.Trigger value="foryou">Para Você</Tabs.Trigger>
+          <Tabs.Trigger value="following">Seguindo</Tabs.Trigger>
+        </Tabs.List>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          {activeTab === "foryou" && (
-            <section>
-              <h2 className="text-2xl font-bold mb-1">Em Destaque</h2>
-              <p className="text-gray-400 mb-6">
-                Partidas recentes bem avaliadas pela comunidade.
-              </p>
+        <Grid columns={{ initial: "1", lg: "3" }} gap="6" mt="6">
+          <Box style={{ gridColumn: "span 2" }}>
+            <Tabs.Content value="foryou">
+            <Flex direction="column" gap="5">
+              <Box>
+                <Heading as="h2" size="6" mb="1">
+                  Em Destaque
+                </Heading>
+                <Text as="p" color="gray">
+                  Partidas recentes bem avaliadas pela comunidade.
+                </Text>
+              </Box>
               {loading ? (
-                <p>Carregando jogos...</p>
+                <Flex justify="center" p="8">
+                  <Spinner />
+                </Flex>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Grid columns={{ initial: "1", md: "2" }} gap="5">
                   {trendingGames.map((gameData) => (
                     <GameCard key={gameData.id} gameData={gameData} />
                   ))}
-                </div>
+                </Grid>
               )}
-            </section>
-          )}
-          {activeTab === "following" && (
-            <section>
-              <h2 className="text-2xl font-bold mb-4">Feed de Atividades</h2>
-              <div className="space-y-4">
-                {loading ? (
-                  <p>Carregando feed...</p>
-                ) : feed.length > 0 ? (
-                  feed.map((activity) => (
-                    <div
-                      key={activity.id}
-                      className="bg-[#133B5C]/70 p-4 rounded-xl border border-gray-800/50"
-                    >
-                      <p>
-                        <Link
-                          href={`/perfil/${activity.usuario.username}`}
-                          className="font-bold"
-                        >
-                          {activity.usuario.username}
-                        </Link>{" "}
+            </Flex>
+          </Tabs.Content>
+
+          <Tabs.Content value="following">
+            <Flex direction="column" gap="5">
+              <Heading as="h2" size="6">
+                Feed de Atividades
+              </Heading>
+              {loading ? (
+                <Flex justify="center" p="8">
+                  <Spinner />
+                </Flex>
+              ) : feed.length > 0 ? (
+                <Flex direction="column" gap="3">
+                  {feed.map((activity) => (
+                    <Card key={activity.id}>
+                      <Text as="p" size="2">
+                        <RadixLink asChild weight="bold">
+                          <Link href={`/perfil/${activity.usuario.username}`}>
+                            {activity.usuario.username}
+                          </Link>
+                        </RadixLink>{" "}
                         {activity.tipo_atividade === "curtiu_avaliacao"
                           ? "curtiu uma avaliação."
                           : "comentou em uma avaliação."}
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <div className="bg-[#133B5C]/70 rounded-xl border border-gray-700 p-8 text-center text-gray-400">
-                    <p>
-                      O feed de atividades dos usuários que você segue aparecerá
-                      aqui.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-        </div>
+                      </Text>
+                    </Card>
+                  ))}
+                </Flex>
+              ) : (
+                <Card>
+                  <Flex align="center" justify="center" p="8">
+                    <Text color="gray">
+                      O feed de atividades dos usuários que você segue aparecerá aqui.
+                    </Text>
+                  </Flex>
+                </Card>
+              )}
+            </Flex>
+          </Tabs.Content>
+        </Box>
 
-        <aside className="lg:col-span-1">
-          <section>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Próximos Jogos</h2>
-              <Link
-                href="/jogos"
-                className="text-sm text-gray-400 hover:text-white"
-              >
-                Ver mais
-              </Link>
-            </div>
+        <Box>
+          <Flex direction="column" gap="4">
+            <Flex justify="between" align="baseline">
+              <Heading as="h2" size="5">
+                Próximos Jogos
+              </Heading>
+              <RadixLink asChild size="2">
+                <Link href="/jogos">Ver mais</Link>
+              </RadixLink>
+            </Flex>
             {loading ? (
-              <p>Carregando...</p>
+              <Flex justify="center" p="6">
+                <Spinner />
+              </Flex>
             ) : (
-              <div className="space-y-4">
+              <Flex direction="column" gap="3">
                 {upcomingGames.map((game) => (
                   <UpcomingGameCard key={game.id} game={game} />
                 ))}
-              </div>
+              </Flex>
             )}
-          </section>
-        </aside>
-      </div>
-    </div>
+          </Flex>
+        </Box>
+        </Grid>
+      </Tabs.Root>
+    </Box>
   );
 }

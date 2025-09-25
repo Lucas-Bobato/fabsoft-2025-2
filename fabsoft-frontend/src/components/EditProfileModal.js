@@ -2,8 +2,18 @@
 import { useState } from "react";
 import api from "@/services/api";
 import TeamSelector from "./TeamSelector";
-import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
+import {
+  Dialog,
+  Flex,
+  Text,
+  Button,
+  TextField,
+  TextArea,
+  Avatar,
+  IconButton,
+} from "@radix-ui/themes";
+import { Cross1Icon } from "@radix-ui/react-icons";
 
 export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
   const { updateUser } = useAuth();
@@ -58,7 +68,7 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
       }
 
       const response = await api.put("/usuarios/me", updatedData);
-      updateUser(response.data); // Atualiza o estado global do usuário
+      updateUser(response.data);
       onProfileUpdate();
       onClose();
     } catch (error) {
@@ -70,104 +80,88 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-gray-900/90 flex items-center justify-center p-4 z-50"
-      onClick={onClose}
-    >
-      <div
-        className="bg-[#0A2540] border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-4 border-b border-gray-700 text-center relative">
-          <h3 className="font-bold text-lg">Editar Perfil</h3>
-          <button
-            onClick={onClose}
-            className="absolute top-2 right-4 text-gray-400 text-2xl"
+    <Dialog.Root open={true} onOpenChange={onClose}>
+      <Dialog.Content style={{ maxWidth: 600 }}>
+        <Dialog.Title>Editar Perfil</Dialog.Title>
+        <Dialog.Close>
+          <IconButton
+            variant="ghost"
+            color="gray"
+            style={{ position: "absolute", top: "16px", right: "16px" }}
           >
-            &times;
-          </button>
-        </div>
+            <Cross1Icon />
+          </IconButton>
+        </Dialog.Close>
 
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-6 space-y-6">
-          <div className="flex flex-col items-center gap-4">
-            <Image
-              src={previewUrl}
-              alt="Pré-visualização da foto de perfil"
-              width={128}
-              height={128}
-              className="w-32 h-32 rounded-full object-cover border-4 border-slate-700"
-            />
-            <input
-              type="file"
-              id="profile-pic-upload"
-              className="hidden"
-              accept="image/png, image/jpeg"
-              onChange={handleFileChange}
-            />
-            <label
-              htmlFor="profile-pic-upload"
-              className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg cursor-pointer"
-            >
-              Alterar Foto
+        <form onSubmit={handleSubmit}>
+          <Flex direction="column" gap="5" mt="4">
+            <Flex direction="column" align="center" gap="3">
+              <Avatar
+                src={previewUrl}
+                fallback={user.username[0]}
+                size="8"
+                radius="full"
+              />
+              <input
+                type="file"
+                id="profile-pic-upload"
+                style={{ display: "none" }}
+                accept="image/png, image/jpeg"
+                onChange={handleFileChange}
+              />
+              <Button asChild variant="soft">
+                <label htmlFor="profile-pic-upload">Alterar Foto</label>
+              </Button>
+            </Flex>
+
+            <label>
+              <Text as="div" size="2" weight="bold" mb="1">
+                Nome Completo
+              </Text>
+              <TextField.Root
+                name="nome_completo"
+                value={formData.nome_completo}
+                onChange={handleChange}
+              />
             </label>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300">
-              Nome Completo
+            <label>
+              <Text as="div" size="2" weight="bold" mb="1">
+                Bio
+              </Text>
+              <TextArea
+                name="bio"
+                value={formData.bio}
+                onChange={handleChange}
+                rows={3}
+                placeholder="Fale um pouco sobre você..."
+              />
             </label>
-            <input
-              type="text"
-              name="nome_completo"
-              value={formData.nome_completo}
-              onChange={handleChange}
-              className="input-style"
-            />
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300">
-              Bio
+            <label>
+              <Text as="div" size="2" weight="bold" mb="2">
+                Time Favorito
+              </Text>
+              <TeamSelector
+                onConfirm={handleTeamSelect}
+                initialSelectedTeamId={formData.time_favorito_id}
+                isEditMode={true}
+              />
             </label>
-            <textarea
-              name="bio"
-              value={formData.bio}
-              onChange={handleChange}
-              rows="3"
-              className="input-style"
-              placeholder="Fale um pouco sobre você..."
-            ></textarea>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Time Favorito
-            </label>
-            <TeamSelector
-              onConfirm={handleTeamSelect}
-              initialSelectedTeamId={formData.time_favorito_id}
-              isEditMode={true}
-            />
-          </div>
-
-          <div className="pt-4 flex justify-end gap-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-[#4DA6FF] hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-500"
-            >
-              {isSubmitting ? "A guardar..." : "Guardar Alterações"}
-            </button>
-          </div>
+            <Flex justify="end" gap="3" mt="4">
+              <Dialog.Close>
+                <Button variant="soft" color="gray">
+                  Cancelar
+                </Button>
+              </Dialog.Close>
+              <Button type="submit" loading={isSubmitting}>
+                Guardar Alterações
+              </Button>
+            </Flex>
+          </Flex>
         </form>
-      </div>
-    </div>
+      </Dialog.Content>
+    </Dialog.Root>
   );
 }

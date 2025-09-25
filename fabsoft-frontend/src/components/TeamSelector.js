@@ -1,7 +1,16 @@
 "use client";
 import { useState, useEffect } from "react";
 import api from "@/services/api";
-import Image from "next/image";
+import {
+  Grid,
+  Card,
+  Flex,
+  Text,
+  Button,
+  Heading,
+  Box,
+  Spinner,
+} from "@radix-ui/themes";
 
 export default function TeamSelector({
   onConfirm,
@@ -29,58 +38,78 @@ export default function TeamSelector({
   const handleSelect = (teamId) => {
     setSelectedTeam(teamId);
     if (isEditMode) {
-      onConfirm(teamId); // No modo de edição, confirma imediatamente
+      onConfirm(teamId);
     }
   };
 
   if (loading) {
-    return <div className="text-center">Carregando times...</div>;
+    return (
+      <Flex align="center" justify="center" gap="2" p="5">
+        <Spinner />
+        <Text>Carregando times...</Text>
+      </Flex>
+    );
   }
 
   return (
-    <div>
+    <Box>
       {!isEditMode && (
-        <h2 className="text-2xl font-bold text-center mb-6">
+        <Heading align="center" mb="5">
           Escolha seu Time Favorito
-        </h2>
+        </Heading>
       )}
 
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4 max-h-80 overflow-y-auto pr-2 hide-scrollbar">
+      <Grid
+        columns={{ initial: "3", sm: "4", md: "5" }}
+        gap="3"
+        style={{ maxHeight: "400px", overflowY: "auto" }}
+      >
         {teams.map((team) => (
-          <div
+          <Card
             key={team.id}
             onClick={() => handleSelect(team.id)}
-            className={`p-2 flex flex-col items-center justify-center gap-2 rounded-lg cursor-pointer transition-all duration-200
-                ${
-                  selectedTeam === team.id
-                    ? "bg-[#4DA6FF] ring-2 ring-white scale-105"
-                    : "bg-gray-800/70 hover:bg-gray-700/90"
-                }`}
+            variant={selectedTeam === team.id ? "surface" : "ghost"}
+            style={{
+              cursor: "pointer",
+              transition: "transform 0.2s, box-shadow 0.2s",
+              transform: selectedTeam === team.id ? "scale(1.05)" : "scale(1)",
+              boxShadow:
+                selectedTeam === team.id ? "0 0 0 2px var(--accent-9)" : "none",
+            }}
           >
-            <Image
-              src={team.logo_url}
-              alt={`Logo ${team.nome}`}
-              width={60}
-              height={60}
-              className="h-12 w-12 md:h-16 md:w-16 object-contain"
-            />
-            <span className="text-xs text-center font-semibold hidden sm:block">
-              {team.sigla}
-            </span>
-          </div>
+            <Flex direction="column" align="center" justify="center" gap="2">
+              <img
+                src={team.logo_url}
+                alt={`Logo ${team.nome}`}
+                style={{
+                  height: "50px",
+                  width: "50px",
+                  objectFit: "contain",
+                }}
+              />
+              <Text
+                size="1"
+                weight="bold"
+                display={{ initial: "none", sm: "block" }}
+              >
+                {team.sigla}
+              </Text>
+            </Flex>
+          </Card>
         ))}
-      </div>
+      </Grid>
 
       {!isEditMode && (
-        <button
+        <Button
           onClick={() => onConfirm(selectedTeam)}
           disabled={!selectedTeam}
-          className="w-full mt-6 bg-[#8B1E3F] hover:bg-red-800 transition-colors text-white font-bold py-3 px-6 rounded-lg text-lg
-                    disabled:bg-gray-600 disabled:cursor-not-allowed"
+          size="3"
+          mt="5"
+          style={{ width: "100%" }}
         >
           Confirmar e Concluir Cadastro
-        </button>
+        </Button>
       )}
-    </div>
+    </Box>
   );
 }

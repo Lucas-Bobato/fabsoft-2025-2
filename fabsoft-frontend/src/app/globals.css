@@ -1,3 +1,4 @@
+@import "@radix-ui/themes/styles.css";
 @import "tailwindcss";
 
 :root {
@@ -24,26 +25,6 @@ body {
     background-image: linear-gradient(180deg, #020c16 0%, #0A2540 100%);
     background-attachment: fixed;
 }
-
-.input-style {
-    @apply mt-1 block w-full bg-gray-900/70 border border-gray-600 rounded-lg px-4 py-3 focus:ring-2 focus:ring-[#4DA6FF] focus:outline-none transition-all placeholder-gray-500;
-}
-
-/* Classe para esconder a barra de rolagem */
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-/* Esconde a scrollbar para IE, Edge e Firefox */
-.hide-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-}
-
-.bg-card { background-color: rgba(19, 59, 92, 0.4); border: 1px solid rgba(128, 128, 128, 0.2); }
-.bg-card-dark { background-color: rgba(10, 37, 64, 0.6); }
-.tab-button { padding: 0.5rem 1rem; border: none; background: none; color: #9CA3AF; cursor: pointer; font-weight: 600; transition: all 0.2s ease-in-out; border-bottom: 2px solid transparent; }
-.tab-button.active { color: #FFFFFF; border-bottom-color: #8B1E3F; }
 
 .icon-rating, .icon-display { display: flex; gap: 0.25rem; }
 .icon-rating { cursor: pointer; }

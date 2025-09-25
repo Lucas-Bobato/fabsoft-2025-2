@@ -1,8 +1,17 @@
 "use client";
 import { useState, useEffect } from "react";
 import api from "@/services/api";
-import Image from "next/image";
 import Link from "next/link";
+import {
+  Box,
+  Grid,
+  Heading,
+  Text,
+  Spinner,
+  Flex,
+  Avatar,
+  Card,
+} from "@radix-ui/themes";
 
 export default function TimesPage() {
   const [teams, setTeams] = useState([]);
@@ -23,32 +32,43 @@ export default function TimesPage() {
   }, []);
 
   return (
-    <main className="container mx-auto px-6 py-8 max-w-screen-xl">
-      <h1 className="text-3xl font-bold mb-8">Times da NBA</h1>
+    <Box maxWidth="1280px" mx="auto" px="6" py="6">
+      <Heading size="8" mb="6">Times da NBA</Heading>
       {loading ? (
-        <p>Carregando times...</p>
+        <Flex justify="center" align="center" p="8">
+          <Spinner size="3" />
+          <Text ml="2">Carregando times...</Text>
+        </Flex>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <Grid columns={{ initial: "2", sm: "3", md: "4", lg: "6" }} gap="4">
           {teams.map((team) => (
-            <Link
-              key={team.id}
-              href={`/times/${team.slug}`}
-              className="bg-[#133B5C] border border-gray-800 p-4 rounded-lg flex flex-col items-center justify-center gap-3 hover:border-gray-600 transition-all duration-200 hover:scale-105"
-            >
-              <Image
-                src={team.logo_url}
-                alt={`Logo ${team.nome}`}
-                width={80}
-                height={80}
-                className="h-20 w-20 object-contain"
-              />
-              <span className="text-sm text-center font-semibold">
-                {team.nome}
-              </span>
-            </Link>
+            <Card asChild key={team.id}>
+              <Link
+                href={`/times/${team.slug}`}
+                style={{
+                  textDecoration: "none",
+                  transition: "transform 0.2s",
+                }}
+                onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.05)"}
+                onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
+              >
+                <Flex direction="column" align="center" justify="center" gap="3" p="4">
+                  <Avatar
+                    src={team.logo_url}
+                    alt={`Logo ${team.nome}`}
+                    fallback={team.sigla}
+                    size="6"
+                    radius="medium"
+                  />
+                  <Text size="2" weight="medium" align="center">
+                    {team.nome}
+                  </Text>
+                </Flex>
+              </Link>
+            </Card>
           ))}
-        </div>
+        </Grid>
       )}
-    </main>
+    </Box>
   );
 }

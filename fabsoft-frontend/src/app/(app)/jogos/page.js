@@ -2,21 +2,28 @@
 import { useState, useEffect } from "react";
 import api from "@/services/api";
 import GameCard from "@/components/GameCard";
-import { ListFilter } from "lucide-react";
+import {
+  Grid,
+  Flex,
+  Heading,
+  Select,
+  TextField,
+  Button,
+  Spinner,
+  Box,
+  Text
+} from "@radix-ui/themes";
 
 export default function JogosPage() {
   const [games, setGames] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // O estado inicial agora é vazio, para carregar os jogos futuros por padrão
   const [filters, setFilters] = useState({
     team_id: "",
     date: "",
   });
 
   useEffect(() => {
-    // Busca a lista de times para preencher o seletor
     const fetchTeams = async () => {
       try {
         const response = await api.get("/times/");
@@ -29,7 +36,6 @@ export default function JogosPage() {
   }, []);
 
   useEffect(() => {
-    // Busca os jogos sempre que os filtros mudarem
     const fetchGames = async () => {
       setLoading(true);
       try {
@@ -41,12 +47,7 @@ export default function JogosPage() {
           params.append("data", filters.date);
         }
         const response = await api.get(`/jogos?${params.toString()}`);
-        // Adapta a estrutura dos dados recebidos para o GameCard
-        const formattedGames = response.data.map((game) => ({
-          ...game,
-          jogo: game,
-        }));
-        setGames(formattedGames);
+        setGames(response.data);
       } catch (error) {
         console.error("Erro ao buscar jogos:", error);
       } finally {
@@ -56,8 +57,7 @@ export default function JogosPage() {
     fetchGames();
   }, [filters]);
 
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
+  const handleFilterChange = (name, value) => {
     setFilters((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -66,54 +66,60 @@ export default function JogosPage() {
   };
 
   return (
-    <main className="container mx-auto px-6 py-8 max-w-screen-xl">
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-        <h1 className="text-3xl font-bold">Jogos</h1>
-        <div className="flex items-center gap-2">
-          <input
+    <Box maxWidth="1280px" mx="auto" px="6" py="6">
+      <Flex
+        direction={{ initial: "column", sm: "row" }}
+        justify="between"
+        align={{ initial: "stretch", sm: "center" }}
+        mb="6"
+        gap="4"
+      >
+        <Heading>Jogos</Heading>
+        <Flex gap="3" align="center">
+          <TextField.Root
             type="date"
             name="date"
             value={filters.date}
-            onChange={handleFilterChange}
-            className="bg-gray-900/70 border border-gray-600 rounded-lg py-2 px-4 focus:ring-2 focus:ring-[#4DA6FF] focus:outline-none"
+            onChange={(e) => handleFilterChange("date", e.target.value)}
           />
-          <select
-            name="team_id"
-            value={filters.team_id}
-            onChange={handleFilterChange}
-            className="bg-gray-900/70 border border-gray-600 rounded-lg py-2 px-4 focus:ring-2 focus:ring-[#4DA6FF] focus:outline-none"
+          <Select.Root
+            value={filters.team_id || undefined}
+            onValueChange={(value) => handleFilterChange("team_id", value || "")}
           >
-            <option value="">Todos os Times</option>
-            {teams.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.nome}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={clearFilters}
-            className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg"
-          >
+            <Select.Trigger placeholder="Todos os Times" />
+            <Select.Content>
+              {teams.map((team) => (
+                <Select.Item key={team.id} value={team.id.toString()}>
+                  {team.nome}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+          <Button onClick={clearFilters} variant="soft">
             Limpar
-          </button>
-        </div>
-      </div>
+          </Button>
+        </Flex>
+      </Flex>
 
       {loading ? (
-        <p className="text-center text-gray-400">A carregar jogos...</p>
+        <Flex justify="center" p="8">
+          <Spinner />
+        </Flex>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Grid columns={{ initial: "1", md: "2", lg: "3" }} gap="5">
           {games.length > 0 ? (
             games.map((gameData) => (
               <GameCard key={gameData.id} gameData={gameData} />
             ))
           ) : (
-            <p className="col-span-full text-center text-gray-400 py-10">
-              Nenhum jogo encontrado para os filtros selecionados.
-            </p>
+            <Flex justify="center" p="8" style={{ gridColumn: "1 / -1" }}>
+              <Text color="gray">
+                Nenhum jogo encontrado para os filtros selecionados.
+              </Text>
+            </Flex>
           )}
-        </div>
+        </Grid>
       )}
-    </main>
+    </Box>
   );
 }
