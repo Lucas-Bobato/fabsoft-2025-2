@@ -431,10 +431,24 @@ class UsuarioUpdate(BaseModel):
 class UsuarioSocialInfo(UsuarioSimple):
     is_followed_by_current_user: bool = False
     
+class TimeMaisAvaliado(BaseModel):
+    time: Optional[Time] = None
+    total_avaliacoes: Optional[int] = None
+    media_nota: Optional[float] = None
+    media_ataque: Optional[float] = None
+    media_defesa: Optional[float] = None
+
 class UserStats(BaseModel):
     total_avaliacoes: int
     media_geral: float
     distribuicao_notas: dict[int, int]
+    mvp_mais_votado: Optional[JogadorMaisVotado] = None
+    decepcao_mais_votada: Optional[JogadorMaisVotado] = None
+    time_mais_avaliado: Optional[TimeMaisAvaliado] = None
+    time_melhor_avaliado: Optional[TimeMaisAvaliado] = None
+    time_pior_avaliado: Optional[TimeMaisAvaliado] = None
+    time_melhor_ataque: Optional[TimeMaisAvaliado] = None
+    time_melhor_defesa: Optional[TimeMaisAvaliado] = None
     
 class Schedule(BaseModel):
     recent: List[Jogo]
