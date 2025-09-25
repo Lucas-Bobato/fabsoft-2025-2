@@ -32,6 +32,9 @@ import {
   Megaphone,
   ShieldCheck,
   Globe,
+  Zap,
+  Shield,
+  ChartNoAxesColumn,
 } from "lucide-react";
 import {
   Flex,
@@ -53,20 +56,64 @@ import FollowModal from "@/components/FollowModal";
 import EditProfileModal from "@/components/EditProfileModal";
 import { teamColors } from "@/utils/teamColors";
 
-// Componente interno para a barra de distribuição de notas (agora vertical)
+// Componente interno para a barra de distribuição de notas (vertical como no print)
 const VerticalRatingBar = ({ rating, count, maxCount, color }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
   const heightPercentage = maxCount > 0 ? (count / maxCount) * 100 : 0;
+  
   return (
-    <div className="flex flex-col items-center justify-end h-full">
-      <div className="text-xs font-bold text-white mb-1">{count}</div>
-      <div
-        className="w-4 rounded-t-md"
-        style={{ height: `${heightPercentage}%`, backgroundColor: color }}
-      ></div>
-      <div className="text-xs font-bold mt-1">
-        {rating} <StarIcon width="12" height="12" className="inline-block -mt-1" />
-      </div>
-    </div>
+    <Box 
+      position="relative" 
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+      style={{ cursor: 'pointer' }}
+    >
+      <Flex direction="column" align="center" justify="end" style={{ height: '200px' }}>
+        {/* Barra colorida */}
+        <Box
+          style={{
+            width: '20px',
+            height: `${Math.max(heightPercentage * 1.5, 5)}px`, // mínimo 5px para visibilidade
+            backgroundColor: color,
+            borderRadius: '4px 4px 0 0',
+            marginBottom: '8px',
+            transition: 'height 0.3s ease'
+          }}
+        />
+        {/* Label da nota */}
+        <Flex align="center" gap="1">
+          <Text size="2" weight="bold">{rating}</Text>
+          <StarIcon width="12" height="12" />
+        </Flex>
+        {/* Contador */}
+        <Text size="1" color="gray" mt="1">{count}</Text>
+      </Flex>
+      
+      {/* Tooltip */}
+      {showTooltip && (
+        <Box
+          position="absolute"
+          top="-45px"
+          left="50%"
+          style={{
+            transform: 'translateX(-50%)',
+            backgroundColor: '#2a2a2a',
+            color: 'white',
+            padding: '6px 10px',
+            borderRadius: '6px',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            whiteSpace: 'nowrap',
+            zIndex: 10,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+          }}
+        >
+          {rating} ★
+          <br />
+          <span style={{ fontSize: '12px', fontWeight: 'normal' }}>{count}</span>
+        </Box>
+      )}
+    </Box>
   );
 };
 
@@ -326,11 +373,16 @@ export default function ProfilePage() {
     ? Math.max(1, ...Object.values(stats.distribuicao_notas))
     : 1;
   const ratingColors = {
-    5: "#4ade80",
-    4: "#a3e635",
-    3: "#facc15",
+    0.5: "#ef4444",
+    1: "#f87171", 
+    1.5: "#fb7185",
     2: "#fb923c",
-    1: "#f87171",
+    2.5: "#f59e0b",
+    3: "#facc15",
+    3.5: "#eab308",
+    4: "#a3e635",
+    4.5: "#84cc16",
+    5: "#4ade80",
   };
 
   return (
@@ -351,7 +403,12 @@ export default function ProfilePage() {
       )}
 
       <Card>
-        <Flex direction={{ initial: "column", md: "row" }} align="center" justify="between" gap="5">
+        <Flex
+          direction={{ initial: "column", md: "row" }}
+          align="center"
+          justify="between"
+          gap="5"
+        >
           <Flex align="center" gap="5">
             <Box position="relative">
               <Avatar
@@ -393,14 +450,21 @@ export default function ProfilePage() {
               )}
             </Box>
           </Flex>
-          <Flex direction="column" align={{ initial: "center", md: "end" }} gap="4">
+          <Flex
+            direction="column"
+            align={{ initial: "center", md: "end" }}
+            gap="4"
+          >
             <Flex align="center" gap="4">
               {isMyProfile ? (
                 <Button onClick={() => setIsEditModalOpen(true)}>
                   <Pencil2Icon /> Editar Perfil
                 </Button>
               ) : (
-                <Button onClick={handleFollowToggle} variant={isFollowing ? "soft" : "solid"}>
+                <Button
+                  onClick={handleFollowToggle}
+                  variant={isFollowing ? "soft" : "solid"}
+                >
                   {isFollowing ? "Seguindo" : "Seguir"}
                 </Button>
               )}
@@ -409,13 +473,21 @@ export default function ProfilePage() {
               </IconButton>
             </Flex>
             <Flex gap="5" align="center">
-              <RadixLink onClick={() => handleOpenModal("followers")} size="2" weight="bold">
+              <RadixLink
+                onClick={() => handleOpenModal("followers")}
+                size="2"
+                weight="bold"
+              >
                 <Flex align="center" gap="1">
                   <Text>{profile.total_seguidores}</Text>
                   <Text color="gray">Seguidores</Text>
                 </Flex>
               </RadixLink>
-              <RadixLink onClick={() => handleOpenModal("following")} size="2" weight="bold">
+              <RadixLink
+                onClick={() => handleOpenModal("following")}
+                size="2"
+                weight="bold"
+              >
                 <Flex align="center" gap="1">
                   <Text>{profile.total_seguindo}</Text>
                   <Text color="gray">Seguindo</Text>
@@ -442,89 +514,292 @@ export default function ProfilePage() {
           </Flex>
         ) : (
           <Card>
-            <Flex direction="column" gap="4" p="4">
-              {/* Estatísticas principais em linha */}
-              <Grid columns={{ initial: "2", md: "3", lg: "6" }} gap="4">
-                <Flex direction="column" align="center" p="3" style={{ backgroundColor: "var(--gray-2)", borderRadius: "8px" }}>
-                  <Flex align="center" gap="2" mb="1">
+            <Flex direction="column" gap="6" p="4">
+              {/* Primeira linha de estatísticas */}
+              <Grid columns={{ initial: "2", sm: "3", md: "5" }} gap="4">
+                {/* Avaliações */}
+                <Card
+                  style={{
+                    backgroundColor: "var(--gray-2)",
+                    border: "1px solid var(--gray-6)",
+                  }}
+                >
+                  <Flex direction="column" align="center" p="4">
                     <FileText size={20} color="var(--blue-9)" />
-                    <Text size="4" weight="bold">{stats.total_avaliacoes}</Text>
+                    <Text size="5" weight="bold" mt="2">
+                      {stats.total_avaliacoes}
+                    </Text>
+                    <Text size="2" color="gray">
+                      Avaliações
+                    </Text>
                   </Flex>
-                  <Text size="2" color="gray">Avaliações</Text>
-                </Flex>
-                
-                <Flex direction="column" align="center" p="3" style={{ backgroundColor: "var(--gray-2)", borderRadius: "8px" }}>
-                  <Flex align="center" gap="2" mb="1">
+                </Card>
+
+                {/* Média Geral */}
+                <Card
+                  style={{
+                    backgroundColor: "var(--gray-2)",
+                    border: "1px solid var(--gray-6)",
+                  }}
+                >
+                  <Flex direction="column" align="center" p="4">
                     <Star size={20} color="var(--amber-9)" />
-                    <Text size="4" weight="bold">{stats.media_geral.toFixed(2)}</Text>
-                  </Flex>
-                  <Text size="2" color="gray">Média Geral</Text>
-                </Flex>
-
-                <Flex direction="column" align="center" p="3" style={{ backgroundColor: "var(--gray-2)", borderRadius: "8px" }}>
-                  <Flex align="center" gap="2" mb="1">
-                    <Award size={20} color="var(--green-9)" />
-                    <Text size="4" weight="bold">
-                      {Math.max(...Object.values(stats.distribuicao_notas))}
+                    <Text size="5" weight="bold" mt="2">
+                      {stats.media_geral.toFixed(2)}
+                    </Text>
+                    <Text size="2" color="gray">
+                      Média Geral
                     </Text>
                   </Flex>
-                  <Text size="2" color="gray">Nota Mais Dada</Text>
-                </Flex>
+                </Card>
 
-                <Flex direction="column" align="center" p="3" style={{ backgroundColor: "var(--gray-2)", borderRadius: "8px" }}>
-                  <Flex align="center" gap="2" mb="1">
-                    <BarChart size={20} color="var(--purple-9)" />
-                    <Text size="4" weight="bold">
-                      {Object.keys(stats.distribuicao_notas).filter(k => stats.distribuicao_notas[k] > 0).length}
-                    </Text>
-                  </Flex>
-                  <Text size="2" color="gray">Notas Diferentes</Text>
-                </Flex>
+                {/* Time Mais Avaliado */}
+                {stats.time_mais_avaliado &&
+                  stats.time_mais_avaliado.total_avaliacoes && (
+                    <Card
+                      style={{
+                        backgroundColor: "var(--gray-2)",
+                        border: "1px solid var(--gray-6)",
+                      }}
+                    >
+                      <Flex direction="column" align="center" p="4" gap="2">
+                        <ChartNoAxesColumn size={20} color="#000000" />
+                        <Text size="4" weight="bold">
+                          {stats.time_mais_avaliado.total_avaliacoes} jogos
+                        </Text>
+                        <Flex align="center" gap="2">
+                          {stats.time_mais_avaliado.time?.logo_url && (
+                            <Avatar
+                              src={stats.time_mais_avaliado.time.logo_url}
+                              fallback="T"
+                              size="1"
+                              radius="full"
+                            />
+                          )}
+                          <Text size="2" color="gray" align="center">
+                            {stats.time_mais_avaliado.time?.nome ||
+                              stats.time_mais_avaliado.time?.nome ||
+                              "Time"}
+                          </Text>
+                        </Flex>
+                        <Text size="1" color="gray">
+                          Time mais avaliado
+                        </Text>
+                      </Flex>
+                    </Card>
+                  )}
 
-                {/* MVP Mais Votado */}
-                {stats.mvp_mais_votado && (
-                  <Flex direction="column" align="center" p="3" style={{ backgroundColor: "var(--green-2)", borderRadius: "8px", border: "1px solid var(--green-6)" }}>
-                    <Flex align="center" gap="2" mb="1">
-                      <Award size={20} color="var(--green-9)" />
-                      <Text size="4" weight="bold">{stats.mvp_mais_votado.votos}</Text>
-                    </Flex>
-                    <Text size="2" color="gray" align="center">
-                      {stats.mvp_mais_votado.jogador.nome.split(' ')[0]} MVP
-                    </Text>
-                  </Flex>
-                )}
+                {/* Time Melhor Ataque */}
+                {stats.time_melhor_ataque &&
+                  stats.time_melhor_ataque.media_ataque && (
+                    <Card
+                      style={{
+                        backgroundColor: "var(--gray-2)",
+                        border: "1px solid var(--gray-6)",
+                      }}
+                    >
+                      <Flex direction="column" align="center" p="4" gap="2">
+                        <Swords size={20} color="#F97316" />
+                        <Text size="4" weight="bold">
+                          {stats.time_melhor_ataque.media_ataque.toFixed(2)}
+                        </Text>
+                        <Flex align="center" gap="2">
+                          {stats.time_melhor_ataque.time?.logo_url && (
+                            <Avatar
+                              src={stats.time_melhor_ataque.time.logo_url}
+                              fallback="T"
+                              size="1"
+                              radius="full"
+                            />
+                          )}
+                          <Text size="2" color="gray" align="center">
+                            {stats.time_melhor_ataque.time?.nome ||
+                              stats.time_melhor_ataque.time?.nome ||
+                              "Time"}
+                          </Text>
+                        </Flex>
+                        <Text size="1" color="gray">
+                          Ataque melhor avaliado
+                        </Text>
+                      </Flex>
+                    </Card>
+                  )}
 
-                {/* Decepção Mais Votada */}
-                {stats.decepcao_mais_votada && (
-                  <Flex direction="column" align="center" p="3" style={{ backgroundColor: "var(--red-2)", borderRadius: "8px", border: "1px solid var(--red-6)" }}>
-                    <Flex align="center" gap="2" mb="1">
-                      <ThumbsDown size={20} color="var(--red-9)" />
-                      <Text size="4" weight="bold">{stats.decepcao_mais_votada.votos}</Text>
-                    </Flex>
-                    <Text size="2" color="gray" align="center">
-                      {stats.decepcao_mais_votada.jogador.nome.split(' ')[0]} Decepção
-                    </Text>
-                  </Flex>
-                )}
+                {/* Time Melhor Defesa */}
+                {stats.time_melhor_defesa &&
+                  stats.time_melhor_defesa.media_defesa && (
+                    <Card
+                      style={{
+                        backgroundColor: "var(--gray-2)",
+                        border: "1px solid var(--gray-6)",
+                      }}
+                    >
+                      <Flex direction="column" align="center" p="4" gap="2">
+                        <Shield size={20} color="var(--blue-9)" />
+                        <Text size="4" weight="bold">
+                          {stats.time_melhor_defesa.media_defesa.toFixed(2)}
+                        </Text>
+                        <Flex align="center" gap="2">
+                          {stats.time_melhor_defesa.time?.logo_url && (
+                            <Avatar
+                              src={stats.time_melhor_defesa.time.logo_url}
+                              fallback="T"
+                              size="1"
+                              radius="full"
+                            />
+                          )}
+                          <Text size="2" color="gray" align="center">
+                            {stats.time_melhor_defesa.time?.nome ||
+                              stats.time_melhor_defesa.time?.nome ||
+                              "Time"}
+                          </Text>
+                        </Flex>
+                        <Text size="1" color="gray">
+                          Defesa melhor avaliada
+                        </Text>
+                      </Flex>
+                    </Card>
+                  )}
               </Grid>
 
-              {/* Distribuição de Notas */}
-              <Box>
-                <Heading size="4" mb="3" align="center">
-                  Distribuição de Notas
-                </Heading>
-                <Flex justify="center" align="end" style={{ height: "120px" }} gap="3">
-                  {[5, 4, 3, 2, 1].map((rating) => (
-                    <VerticalRatingBar
-                      key={rating}
-                      rating={rating}
-                      count={stats.distribuicao_notas[rating] || 0}
-                      maxCount={maxRatingCount}
-                      color={ratingColors[rating]}
-                    />
-                  ))}
+              {/* Segunda linha - MVP/Decepção e Distribuição */}
+              <Grid columns={{ initial: "1", md: "2" }} gap="6">
+                {/* Coluna esquerda - MVP e Decepção */}
+                <Flex direction="column" gap="4">
+                  {/* MVP Mais Votado */}
+                  {stats.mvp_mais_votado && stats.mvp_mais_votado.jogador && (
+                    <Card
+                      style={{
+                        backgroundColor: "var(--green-2)",
+                        border: "1px solid var(--green-6)",
+                      }}
+                    >
+                      <Flex align="center" p="4" gap="4">
+                        <Avatar
+                          src={
+                            stats.mvp_mais_votado.jogador.foto_url ||
+                            "/placeholder.png"
+                          }
+                          fallback={stats.mvp_mais_votado.jogador.nome[0]}
+                          size="5"
+                          radius="full"
+                        />
+                        <Box flex="1">
+                          <Link href={`/jogadores/${stats.mvp_mais_votado.jogador.slug}`} passHref>
+                            <Text size="4" weight="bold" style={{ cursor: "pointer" }}>
+                              {stats.mvp_mais_votado.jogador.nome}
+                            </Text>
+                          </Link>
+                          <Flex align="center" gap="2" mt="1">
+                            {stats.mvp_mais_votado.jogador.time_atual?.logo_url && (
+                              <Avatar
+                                src={stats.mvp_mais_votado.jogador.time_atual.logo_url}
+                                fallback="T"
+                                size="1"
+                                radius="full"
+                              />
+                            )}
+                            <Link href={`/times/${stats.mvp_mais_votado.jogador.time_atual?.slug}`} passHref>
+                              <Text size="2" color="gray" style={{ cursor: "pointer" }}>
+                                {stats.mvp_mais_votado.jogador.time_atual?.nome || 'Time'}
+                              </Text>
+                            </Link>
+                          </Flex>
+                        </Box>
+                        <Flex direction="column" align="center" justify="center" gap="1">
+                          <Award size={20} color="var(--green-9)" />
+                          <Text size="5" weight="bold">
+                            {stats.mvp_mais_votado.votos} votos
+                          </Text>
+                          <Text size="2" color="gray" align="center">
+                            Jogador mais votado como MVP
+                          </Text>
+                        </Flex>
+                      </Flex>
+                    </Card>
+                  )}
+
+                  {/* Decepção Mais Votada */}
+                  {stats.decepcao_mais_votada &&
+                    stats.decepcao_mais_votada.jogador && (
+                      <Card
+                        style={{
+                          backgroundColor: "var(--red-2)",
+                          border: "1px solid var(--red-6)",
+                        }}
+                      >
+                        <Flex align="center" p="4" gap="4">
+                          <Avatar
+                            src={
+                              stats.decepcao_mais_votada.jogador.foto_url ||
+                              "/placeholder.png"
+                            }
+                            fallback={
+                              stats.decepcao_mais_votada.jogador.nome[0]
+                            }
+                            size="5"
+                            radius="full"
+                          />
+                          <Box flex="1">
+                            <Link href={`/jogadores/${stats.decepcao_mais_votada.jogador.slug}`} passHref>
+                              <Text size="4" weight="bold" style={{ cursor: "pointer" }}>
+                                {stats.decepcao_mais_votada.jogador.nome}
+                              </Text>
+                            </Link>
+                            <Flex align="center" gap="2" mt="1">
+                              {stats.decepcao_mais_votada.jogador.time_atual?.logo_url && (
+                                <Avatar
+                                  src={stats.decepcao_mais_votada.jogador.time_atual.logo_url}
+                                  fallback="T"
+                                  size="1"
+                                  radius="full"
+                                />
+                              )}
+                              <Link href={`/times/${stats.decepcao_mais_votada.jogador.time_atual?.slug}`} passHref>
+                                <Text size="2" color="gray" style={{ cursor: "pointer" }}>
+                                  {stats.decepcao_mais_votada.jogador.time_atual?.nome || 'Time'}
+                                </Text>
+                              </Link>
+                            </Flex>
+                          </Box>
+                          <Flex direction="column" align="center" justify="center" gap="1">
+                            <ThumbsDown size={20} color="var(--red-9)" />
+                            <Text size="5" weight="bold">
+                              {stats.decepcao_mais_votada.votos} votos
+                            </Text>
+                            <Text size="2" color="gray" align="center">
+                              Jogador mais votado como decepção
+                            </Text>
+                          </Flex>
+                        </Flex>
+                      </Card>
+                    )}
                 </Flex>
-              </Box>
+
+                {/* Coluna direita - Distribuição de Notas */}
+                <Box>
+                  <Card p="4">
+                    <Flex
+                      justify="center"
+                      align="end"
+                      gap="2"
+                      style={{ height: "250px" }}
+                    >
+                      {[0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map(
+                        (rating) => (
+                          <VerticalRatingBar
+                            key={rating}
+                            rating={rating}
+                            count={stats.distribuicao_notas[rating] || 0}
+                            maxCount={maxRatingCount}
+                            color={ratingColors[rating]}
+                          />
+                        )
+                      )}
+                    </Flex>
+                  </Card>
+                </Box>
+              </Grid>
             </Flex>
           </Card>
         )}
@@ -561,15 +836,22 @@ export default function ProfilePage() {
         {profile.avaliacoes_recentes.length > 0 ? (
           <Grid columns={{ initial: "1", md: "2", lg: "3" }} gap="4">
             {profile.avaliacoes_recentes.map((review) => (
-              <Link href={`/jogos/${review.jogo.slug}?review=${review.id}`} key={review.id} passHref>
+              <Link
+                href={`/jogos/${review.jogo.slug}?review=${review.id}`}
+                key={review.id}
+                passHref
+              >
                 <Card asChild>
                   <a className="hover:opacity-80 transition-opacity">
                     <Flex justify="between" mb="2">
                       <Text weight="bold" size="2">
-                        {review.jogo.time_visitante.sigla} @ {review.jogo.time_casa.sigla}
+                        {review.jogo.time_visitante.sigla} @{" "}
+                        {review.jogo.time_casa.sigla}
                       </Text>
                       <Text size="1" color="gray">
-                        {new Date(review.data_avaliacao).toLocaleDateString("pt-BR")}
+                        {new Date(review.data_avaliacao).toLocaleDateString(
+                          "pt-BR"
+                        )}
                       </Text>
                     </Flex>
                     <Text as="p" size="2" color="gray" mb="2">
@@ -590,7 +872,9 @@ export default function ProfilePage() {
           </Grid>
         ) : (
           <Flex align="center" justify="center" p="5">
-            <Text color="gray">Nenhuma avaliação encontrada com os filtros selecionados.</Text>
+            <Text color="gray">
+              Nenhuma avaliação encontrada com os filtros selecionados.
+            </Text>
           </Flex>
         )}
       </Card>

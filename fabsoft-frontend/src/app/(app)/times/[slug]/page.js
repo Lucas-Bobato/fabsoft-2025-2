@@ -3,10 +3,22 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import api from "@/services/api";
 import { teamColors } from "@/utils/teamColors";
-import { translatePosition } from "@/utils/translations"; // Importando a função
+import { translatePosition } from "@/utils/translations";
 import Image from "next/image";
 import Link from "next/link";
-import { Trophy } from "lucide-react";
+import { Trophy, Users, Calendar, Award } from "lucide-react";
+import {
+  Box,
+  Flex,
+  Grid,
+  Heading,
+  Text,
+  Avatar,
+  Card,
+  Tabs,
+  Badge,
+  Spinner,
+} from "@radix-ui/themes";
 
 const GameListItem = ({ game, teamId }) => {
   const isHome = game.time_casa.id === teamId;
@@ -19,45 +31,47 @@ const GameListItem = ({ game, teamId }) => {
     : null;
 
   return (
-    <Link
-      href={`/jogos/${game.slug}`}
-      className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg hover:bg-gray-700/70 transition-colors"
-    >
-      <div className="flex items-center gap-4">
-        <Image
-          src={opponent.logo_url}
-          alt={opponent.nome}
-          width={32}
-          height={32}
-        />
-        <div>
-          <p className="font-semibold">
-            {isHome ? "vs" : "@"} {opponent.nome}
-          </p>
-          <p className="text-xs text-gray-400">
-            {new Date(game.data_jogo).toLocaleDateString("pt-BR", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-            })}
-          </p>
-        </div>
-      </div>
-      {isFinished && (
-        <div className="flex items-center gap-3">
-          <span
-            className={`font-bold text-lg ${
-              won ? "text-green-400" : "text-red-400"
-            }`}
-          >
-            {won ? "V" : "D"}
-          </span>
-          <p className="font-mono text-xl">
-            {game.placar_casa} - {game.placar_visitante}
-          </p>
-        </div>
-      )}
-    </Link>
+    <Card asChild>
+      <Link href={`/jogos/${game.slug}`}>
+        <Flex justify="between" align="center" p="3">
+          <Flex align="center" gap="3">
+            <Avatar
+              src={opponent.logo_url}
+              alt={opponent.nome}
+              size="2"
+              fallback={opponent.sigla}
+            />
+            <Box>
+              <Text size="2" weight="medium">
+                {isHome ? "vs" : "@"} {opponent.nome}
+              </Text>
+            </Box>
+          </Flex>
+          {isFinished ? (
+            <Flex align="center" gap="2">
+              <Badge 
+                color={won ? "green" : "red"} 
+                variant="soft"
+                size="1"
+              >
+                {won ? "V" : "D"}
+              </Badge>
+              <Text size="2" style={{ fontFamily: 'monospace' }}>
+                {game.placar_casa} - {game.placar_visitante}
+              </Text>
+            </Flex>
+          ) : (
+            <Text size="2" color="gray">
+              {new Date(game.data_jogo).toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              })}
+            </Text>
+          )}
+        </Flex>
+      </Link>
+    </Card>
   );
 };
 
@@ -101,8 +115,20 @@ const TeamPage = () => {
   }, [slug]);
 
   if (loading)
-    return <p className="text-center mt-8">Carregando perfil do time...</p>;
-  if (error) return <p className="text-center mt-8 text-red-500">{error}</p>;
+    return (
+      <Box p="8">
+        <Flex justify="center" align="center" gap="2">
+          <Spinner size="3" />
+          <Text>Carregando perfil do time...</Text>
+        </Flex>
+      </Box>
+    );
+  if (error) 
+    return (
+      <Box p="8">
+        <Text align="center" color="red">{error}</Text>
+      </Box>
+    );
   if (!team) return null;
 
   const colors = teamColors[team.sigla] || {
@@ -111,151 +137,138 @@ const TeamPage = () => {
   };
 
   return (
-    <main className="container mx-auto px-6 py-8 max-w-screen-xl">
-      <div
-        className="p-6 rounded-lg flex flex-col sm:flex-row items-center gap-6"
-        style={{ backgroundColor: colors.primary, color: colors.text }}
+    <Box maxWidth="1280px" mx="auto" p="6">
+      {/* Cabeçalho do Time */}
+      <Box
+        style={{
+          background: `linear-gradient(135deg, ${colors.primary})`,
+          borderRadius: '12px',
+          border: '1px solid rgba(255,255,255,0.1)',
+        }}
       >
-        <Image
-          src={team.logo_url}
-          alt={`Logo ${team.nome}`}
-          width={96}
-          height={96}
-          className="w-24 h-24"
-        />
-        <div>
-          <h1 className="text-4xl font-bold text-center sm:text-left">
-            {team.nome}
-          </h1>
-          <p className="text-lg opacity-90 text-center sm:text-left">
-            {team.cidade}
-          </p>
-        </div>
-      </div>
+        <Flex direction={{ initial: "column", sm: "row" }} align="center" gap="6" p="6">
+          <Avatar
+            src={team.logo_url}
+            alt={`Logo ${team.nome}`}
+            size="9"
+            fallback={team.sigla}
+            style={{ border: '4px solid rgba(255,255,255,0.2)' }}
+          />
+          <Box>
+            <Text size="4" style={{ opacity: 0.9, color: colors.text }}>
+              {team.cidade}
+            </Text>
+            <Heading size="8" mb="2" style={{ color: colors.text }}>
+              {team.nome}
+            </Heading>
+            <Text size="5" style={{ opacity: 0.9, color: colors.text }}>
+              {team.sigla}
+            </Text>
+          </Box>
+        </Flex>
+      </Box>
 
-      <div className="mt-4 border-b border-gray-800">
-        <nav className="flex gap-6">
-          <button
-            onClick={() => setActiveTab("roster")}
-            className={`py-3 px-1 font-semibold transition-colors ${
-              activeTab === "roster"
-                ? "text-white border-b-2 border-white"
-                : "text-gray-400 hover:text-white"
-            }`}
-          >
+      {/* Abas de Navegação */}
+      <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
+        <Tabs.List size="2" mt="4">
+          <Tabs.Trigger value="roster">
+            <Users size={16} />
             Elenco
-          </button>
-          <button
-            onClick={() => setActiveTab("schedule")}
-            className={`py-3 px-1 font-semibold transition-colors ${
-              activeTab === "schedule"
-                ? "text-white border-b-2 border-white"
-                : "text-gray-400 hover:text-white"
-            }`}
-          >
+          </Tabs.Trigger>
+          <Tabs.Trigger value="schedule">
+            <Calendar size={16} />
             Jogos
-          </button>
-          <button
-            onClick={() => setActiveTab("conquistas")}
-            className={`py-3 px-1 font-semibold transition-colors ${
-              activeTab === "conquistas"
-                ? "text-white border-b-2 border-white"
-                : "text-gray-400 hover:text-white"
-            }`}
-          >
+          </Tabs.Trigger>
+          <Tabs.Trigger value="conquistas">
+            <Award size={16} />
             Conquistas
-          </button>
-        </nav>
-      </div>
+          </Tabs.Trigger>
+        </Tabs.List>
 
-      <div className="mt-6">
-        {activeTab === "roster" && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {/* Conteúdo das Abas */}
+        <Tabs.Content value="roster" mt="6">
+          <Grid columns={{ initial: "2", md: "3", lg: "4" }} gap="4">
             {roster.map((player) => (
-              <Link
-                href={`/jogadores/${player.slug}`}
-                key={player.id}
-                className="bg-[#161b22] border border-gray-800 p-4 rounded-lg flex flex-col items-center text-center hover:border-gray-600 transition-colors"
-              >
-                <Image
-                  src={player.foto_url}
-                  alt={player.nome}
-                  width={80}
-                  height={80}
-                  className="w-20 h-20 rounded-full object-cover bg-gray-700 mb-2"
-                />
-                <p className="font-bold text-white">{player.nome}</p>
-                <p className="text-sm text-gray-400">
-                  {translatePosition(player.posicao)} | #{player.numero_camisa}
-                </p>
-              </Link>
+              <Card key={player.id} asChild>
+                <Link href={`/jogadores/${player.slug}`}>
+                  <Flex direction="column" align="center" p="4" gap="3">
+                    <Avatar
+                      src={player.foto_url || "/placeholder.png"}
+                      alt={player.nome}
+                      size="6"
+                      fallback={player.nome?.charAt(0) || "?"}
+                    />
+                    <Flex direction="column" align="center" gap="1">
+                      <Text size="3" weight="bold">{player.nome}</Text>
+                      <Text size="2" color="gray">
+                        {translatePosition(player.posicao)} | #{player.numero_camisa}
+                      </Text>
+                    </Flex>
+                  </Flex>
+                </Link>
+              </Card>
             ))}
-          </div>
-        )}
+          </Grid>
+        </Tabs.Content>
 
-        {activeTab === "schedule" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-              <h3 className="text-xl font-bold text-white mb-4">
-                Próximos Jogos
-              </h3>
-              <div className="space-y-3">
+        <Tabs.Content value="schedule" mt="6">
+          <Grid columns={{ initial: "1", md: "2" }} gap="8">
+            <Box>
+              <Heading size="5" mb="4">Próximos Jogos</Heading>
+              <Flex direction="column" gap="3">
                 {schedule.upcoming.length > 0 ? (
                   schedule.upcoming.map((game) => (
                     <GameListItem key={game.id} game={game} teamId={team.id} />
                   ))
                 ) : (
-                  <p className="text-gray-400">Nenhum jogo futuro agendado.</p>
+                  <Text color="gray">Nenhum jogo futuro agendado.</Text>
                 )}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-white mb-4">
-                Resultados Recentes
-              </h3>
-              <div className="space-y-3">
+              </Flex>
+            </Box>
+            <Box>
+              <Heading size="5" mb="4">Resultados Recentes</Heading>
+              <Flex direction="column" gap="3">
                 {schedule.recent.length > 0 ? (
                   schedule.recent.map((game) => (
                     <GameListItem key={game.id} game={game} teamId={team.id} />
                   ))
                 ) : (
-                  <p className="text-gray-400">
-                    Nenhum resultado recente encontrado.
-                  </p>
+                  <Text color="gray">Nenhum resultado recente encontrado.</Text>
                 )}
-              </div>
-            </div>
-          </div>
-        )}
+              </Flex>
+            </Box>
+          </Grid>
+        </Tabs.Content>
 
-        {activeTab === "conquistas" && (
-          <div className="bg-[#161b22] border border-gray-800 p-6 rounded-lg">
-            <h3 className="text-xl font-bold text-white mb-4">
-              Títulos e Conquistas
-            </h3>
-            {team.conquistas.length > 0 ? (
-              <ul className="space-y-3">
-                {team.conquistas.map((conquista, index) => (
-                  <li key={index} className="flex items-center gap-3 text-lg">
-                    <Trophy className="text-yellow-400" />
-                    {conquista.nome_conquista.replace(
-                      "NBA Champion",
-                      "Campeão da NBA"
-                    )}{" "}
-                    -{" "}
-                    <span className="text-gray-400">{conquista.temporada}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-gray-400">
-                Nenhuma conquista registrada para este time.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-    </main>
+        <Tabs.Content value="conquistas" mt="6">
+          <Card size="3">
+            <Box p="6">
+              <Heading size="5" mb="4">Títulos e Conquistas</Heading>
+              {team.conquistas.length > 0 ? (
+                <Flex direction="column" gap="3">
+                  {team.conquistas.map((conquista, index) => (
+                    <Flex key={index} align="center" gap="3">
+                      <Trophy size={20} color="var(--amber-9)" />
+                      <Text size="3">
+                        {conquista.nome_conquista.replace(
+                          "NBA Champion",
+                          "Campeão da NBA"
+                        )}{" "}
+                        - <Text color="gray">{conquista.temporada}</Text>
+                      </Text>
+                    </Flex>
+                  ))}
+                </Flex>
+              ) : (
+                <Text color="gray">
+                  Nenhuma conquista registrada para este time.
+                </Text>
+              )}
+            </Box>
+          </Card>
+        </Tabs.Content>
+      </Tabs.Root>
+    </Box>
   );
 };
 

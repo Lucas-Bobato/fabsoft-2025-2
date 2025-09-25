@@ -110,6 +110,12 @@ def get_time_by_api_id(db: Session, api_id: int):
     """Busca um time pelo ID da API externa."""
     return db.query(models.Time).filter(models.Time.api_id == api_id).first()
 
+def get_time(db: Session, time_id: int):
+    """Busca um time pelo seu ID primário no banco de dados."""
+    if not time_id:
+        return None
+    return db.query(models.Time).filter(models.Time.id == time_id).first()
+
 def create_time(db: Session, time: schemas.TimeCreate):
     time_data = time.model_dump()
     time_data["slug"] = generate_slug(time.nome)
@@ -1203,7 +1209,13 @@ def get_user_stats(db: Session, user_id: int, start_date: Optional[date] = None,
 
     total_avaliacoes = len(avaliacoes)
     if total_avaliacoes == 0:
-        return schemas.UserStats(total_avaliacoes=0, media_geral=0.0, distribuicao_notas={i: 0 for i in range(1, 6)})
+        return schemas.UserStats(
+            total_avaliacoes=0, 
+            media_geral=0.0, 
+            distribuicao_notas={i: 0 for i in range(1, 6)},
+            mvp_mais_votado=None,
+            decepcao_mais_votada=None
+        )
 
     soma_notas = sum(a.nota_geral for a in avaliacoes)
     media_geral = round(soma_notas / total_avaliacoes, 2)
@@ -1213,8 +1225,174 @@ def get_user_stats(db: Session, user_id: int, start_date: Optional[date] = None,
         nota_arredondada = int(round(a.nota_geral))
         if 1 <= nota_arredondada <= 5:
             distribuicao[nota_arredondada] += 1
+
+    # Encontra o MVP mais votado pelo usuário
+    mvp_query = db.query(
+        models.Avaliacao_Jogo.melhor_jogador_id,
+        func.count(models.Avaliacao_Jogo.melhor_jogador_id).label("votos")
+    ).filter(
+        models.Avaliacao_Jogo.usuario_id == user_id,
+        models.Avaliacao_Jogo.melhor_jogador_id.isnot(None)
+    )
+    
+    # Aplica os mesmos filtros de data para MVP
+    if start_date:
+        mvp_query = mvp_query.filter(models.Avaliacao_Jogo.data_avaliacao >= start_date)
+    if end_date:
+        mvp_query = mvp_query.filter(models.Avaliacao_Jogo.data_avaliacao <= end_date)
+    
+    mvp_result = mvp_query.group_by(models.Avaliacao_Jogo.melhor_jogador_id).order_by(desc("votos")).first()
+
+    # Encontra a Decepção mais votada pelo usuário
+    decepcao_query = db.query(
+        models.Avaliacao_Jogo.pior_jogador_id,
+        func.count(models.Avaliacao_Jogo.pior_jogador_id).label("votos")
+    ).filter(
+        models.Avaliacao_Jogo.usuario_id == user_id,
+        models.Avaliacao_Jogo.pior_jogador_id.isnot(None)
+    )
+    
+    # Aplica os mesmos filtros de data para Decepção
+    if start_date:
+        decepcao_query = decepcao_query.filter(models.Avaliacao_Jogo.data_avaliacao >= start_date)
+    if end_date:
+        decepcao_query = decepcao_query.filter(models.Avaliacao_Jogo.data_avaliacao <= end_date)
+    
+    decepcao_result = decepcao_query.group_by(models.Avaliacao_Jogo.pior_jogador_id).order_by(desc("votos")).first()
+
+    # Busca os dados dos jogadores
+    mvp_jogador = get_jogador(db, mvp_result[0]) if mvp_result else None
+    decepcao_jogador = get_jogador(db, decepcao_result[0]) if decepcao_result else None
+
+    mvp_info = schemas.JogadorMaisVotado(
+        jogador=mvp_jogador,
+        votos=mvp_result[1] if mvp_result else 0
+    ) if mvp_result else None
+    
+    decepcao_info = schemas.JogadorMaisVotado(
+        jogador=decepcao_jogador,
+        votos=decepcao_result[1] if decepcao_result else 0
+    ) if decepcao_result else None
+
+    # Por simplicidade, vou implementar as estatísticas de times usando Python
+    # para evitar queries SQL complexas
+    
+    # Coleta dados para estatísticas de times
+    times_stats = {}
+    for avaliacao in avaliacoes:
+        jogo = avaliacao.jogo
+        
+        # Time da casa
+        casa_id = jogo.time_casa_id
+        if casa_id not in times_stats:
+            times_stats[casa_id] = {
+                'avaliacoes': 0, 'soma_geral': 0, 'soma_ataque': 0, 'soma_defesa': 0,
+                'ataque_count': 0, 'defesa_count': 0
+            }
+        times_stats[casa_id]['avaliacoes'] += 1
+        times_stats[casa_id]['soma_geral'] += avaliacao.nota_geral
+        if avaliacao.nota_ataque_casa:
+            times_stats[casa_id]['soma_ataque'] += avaliacao.nota_ataque_casa
+            times_stats[casa_id]['ataque_count'] += 1
+        if avaliacao.nota_defesa_casa:
+            times_stats[casa_id]['soma_defesa'] += avaliacao.nota_defesa_casa
+            times_stats[casa_id]['defesa_count'] += 1
+        
+        # Time visitante
+        visitante_id = jogo.time_visitante_id
+        if visitante_id not in times_stats:
+            times_stats[visitante_id] = {
+                'avaliacoes': 0, 'soma_geral': 0, 'soma_ataque': 0, 'soma_defesa': 0,
+                'ataque_count': 0, 'defesa_count': 0
+            }
+        times_stats[visitante_id]['avaliacoes'] += 1
+        times_stats[visitante_id]['soma_geral'] += avaliacao.nota_geral
+        if avaliacao.nota_ataque_visitante:
+            times_stats[visitante_id]['soma_ataque'] += avaliacao.nota_ataque_visitante
+            times_stats[visitante_id]['ataque_count'] += 1
+        if avaliacao.nota_defesa_visitante:
+            times_stats[visitante_id]['soma_defesa'] += avaliacao.nota_defesa_visitante
+            times_stats[visitante_id]['defesa_count'] += 1
+
+    # Calcula estatísticas
+    time_mais_avaliado_info = None
+    time_melhor_avaliado_info = None
+    time_pior_avaliado_info = None
+    time_melhor_ataque_info = None
+    time_melhor_defesa_info = None
+    
+    if times_stats:
+        # Time mais avaliado
+        time_mais_avaliado_id = max(times_stats.keys(), key=lambda k: times_stats[k]['avaliacoes'])
+        time_mais_avaliado = get_time(db, time_mais_avaliado_id)
+        if time_mais_avaliado:
+            time_mais_avaliado_info = schemas.TimeMaisAvaliado(
+                time=time_mais_avaliado,
+                total_avaliacoes=times_stats[time_mais_avaliado_id]['avaliacoes']
+            )
+        
+        # Time melhor avaliado (com pelo menos 2 avaliações)
+        times_com_min_avaliacoes = {k: v for k, v in times_stats.items() if v['avaliacoes'] >= 2}
+        if times_com_min_avaliacoes:
+            time_melhor_id = max(times_com_min_avaliacoes.keys(), 
+                               key=lambda k: times_com_min_avaliacoes[k]['soma_geral'] / times_com_min_avaliacoes[k]['avaliacoes'])
+            time_melhor = get_time(db, time_melhor_id)
+            if time_melhor:
+                media_melhor = times_stats[time_melhor_id]['soma_geral'] / times_stats[time_melhor_id]['avaliacoes']
+                time_melhor_avaliado_info = schemas.TimeMaisAvaliado(
+                    time=time_melhor,
+                    media_nota=media_melhor
+                )
             
-    return schemas.UserStats(total_avaliacoes=total_avaliacoes, media_geral=media_geral, distribuicao_notas=distribuicao)
+        # Time pior avaliado (com pelo menos 2 avaliações)
+        if times_com_min_avaliacoes:
+            time_pior_id = min(times_com_min_avaliacoes.keys(), 
+                              key=lambda k: times_com_min_avaliacoes[k]['soma_geral'] / times_com_min_avaliacoes[k]['avaliacoes'])
+            time_pior = get_time(db, time_pior_id)
+            if time_pior:
+                media_pior = times_stats[time_pior_id]['soma_geral'] / times_stats[time_pior_id]['avaliacoes']
+                time_pior_avaliado_info = schemas.TimeMaisAvaliado(
+                    time=time_pior,
+                    media_nota=media_pior
+                )
+            
+        # Time melhor ataque (com pelo menos 2 avaliações)
+        times_com_ataque = {k: v for k, v in times_stats.items() if v['avaliacoes'] >= 2 and v['ataque_count'] > 0}
+        if times_com_ataque:
+            time_melhor_ataque_id = max(times_com_ataque.keys(), 
+                                      key=lambda k: times_com_ataque[k]['soma_ataque'] / times_com_ataque[k]['ataque_count'])
+            time_melhor_ataque = get_time(db, time_melhor_ataque_id)
+            if time_melhor_ataque:
+                media_ataque = times_stats[time_melhor_ataque_id]['soma_ataque'] / times_stats[time_melhor_ataque_id]['ataque_count']
+                time_melhor_ataque_info = schemas.TimeMaisAvaliado(
+                    time=time_melhor_ataque,
+                    media_ataque=media_ataque
+                )
+            
+        # Time melhor defesa (com pelo menos 2 avaliações)
+        times_com_defesa = {k: v for k, v in times_stats.items() if v['avaliacoes'] >= 2 and v['defesa_count'] > 0}
+        if times_com_defesa:
+            time_melhor_defesa_id = max(times_com_defesa.keys(), 
+                                      key=lambda k: times_com_defesa[k]['soma_defesa'] / times_com_defesa[k]['defesa_count'])
+            time_melhor_defesa = get_time(db, time_melhor_defesa_id)
+            if time_melhor_defesa:
+                media_defesa = times_stats[time_melhor_defesa_id]['soma_defesa'] / times_stats[time_melhor_defesa_id]['defesa_count']
+                time_melhor_defesa_info = schemas.TimeMaisAvaliado(
+                    time=time_melhor_defesa,
+                    media_defesa=media_defesa
+                )
+    return schemas.UserStats(
+        total_avaliacoes=total_avaliacoes, 
+        media_geral=media_geral, 
+        distribuicao_notas=distribuicao,
+        mvp_mais_votado=mvp_info,
+        decepcao_mais_votada=decepcao_info,
+        time_mais_avaliado=time_mais_avaliado_info,
+        time_melhor_avaliado=time_melhor_avaliado_info,
+        time_pior_avaliado=time_pior_avaliado_info,
+        time_melhor_ataque=time_melhor_ataque_info,
+        time_melhor_defesa=time_melhor_defesa_info
+    )
 
 def get_schedule_for_time(db: Session, time_id: int):
     """

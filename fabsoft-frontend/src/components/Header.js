@@ -35,10 +35,8 @@ export default function Header() {
   const profilePicUrl = getProfilePicUrl();
 
   const NavLink = ({ href, children }) => (
-    <RadixLink asChild weight="medium" size="3">
-      <Link href={href}>
-        {children}
-      </Link>
+    <RadixLink asChild weight="medium" size="3" style={{ color: "#1e40af" }}>
+      <Link href={href}>{children}</Link>
     </RadixLink>
   );
 
