@@ -5,32 +5,53 @@ import api from "@/services/api";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import {
+  StarIcon,
+  Share2Icon,
+  Pencil2Icon,
+  HeartIcon,
+  ChatBubbleIcon,
+  TrashIcon,
+} from "@radix-ui/react-icons";
+import {
+  Heart,
+  PencilLine,
+  MessageSquare,
+  Users,
+  PlusCircle,
+  Clock,
+  Star,
+  ThumbsUp,
+  ThumbsDown,
+  Award,
+  BarChart,
+  Swords,
+  Calendar,
+  FileText,
+  Gem,
+  Megaphone,
+  ShieldCheck,
+  Globe,
+} from "lucide-react";
+import {
+  Flex,
+  Box,
+  Text,
+  Button,
+  Avatar,
+  Card,
+  Heading,
+  Link as RadixLink,
+  Tabs,
+  Spinner,
+  Dialog,
+  IconButton,
+  Grid,
+} from "@radix-ui/themes";
 import AchievementCard from "@/components/AchievementCard";
 import FollowModal from "@/components/FollowModal";
 import EditProfileModal from "@/components/EditProfileModal";
 import { teamColors } from "@/utils/teamColors";
-import {
-  Award,
-  BarChart,
-  Calendar,
-  Clock,
-  Edit,
-  FileText,
-  Gem,
-  Globe,
-  Heart,
-  Megaphone,
-  MessageSquare,
-  PencilLine,
-  PlusCircle,
-  Share2,
-  ShieldCheck,
-  Star,
-  Swords,
-  ThumbsUp,
-  Users,
-  ClipboardList,
-} from "lucide-react";
 
 // Componente interno para a barra de distribuição de notas (agora vertical)
 const VerticalRatingBar = ({ rating, count, maxCount, color }) => {
@@ -43,136 +64,135 @@ const VerticalRatingBar = ({ rating, count, maxCount, color }) => {
         style={{ height: `${heightPercentage}%`, backgroundColor: color }}
       ></div>
       <div className="text-xs font-bold mt-1">
-        {rating} <Star size={10} className="inline-block -mt-1" />
+        {rating} <StarIcon width="12" height="12" className="inline-block -mt-1" />
       </div>
     </div>
   );
 };
 
-// O objeto `allAchievements` continua o mesmo
 const allAchievements = {
   1: {
     id: 1,
-    icon: <PencilLine size={48} />,
+    icon: <PencilLine size={32} />,
     title: "Primeira Avaliação",
     description: "Você fez sua primeira avaliação de um jogo!",
     xp: 10,
   },
   3: {
     id: 3,
-    icon: <MessageSquare size={48} />,
+    icon: <MessageSquare size={32} />,
     title: "Comentarista",
     description: "Deixou seu primeiro comentário em uma avaliação.",
     xp: 5,
   },
   4: {
     id: 4,
-    icon: <Users size={48} />,
+    icon: <Users size={32} />,
     title: "Social",
     description: "Começou a seguir 5 usuários.",
     xp: 25,
   },
   7: {
     id: 7,
-    icon: <Star size={48} />,
+    icon: <Star size={32} />,
     title: "Jogo da Temporada",
     description: "Deu a nota máxima (5.0) para um jogo.",
     xp: 20,
   },
   5: {
     id: 5,
-    icon: <Heart size={48} />,
+    icon: <Heart size={32} />,
     title: "Coração Valente",
     description: "Avaliou uma partida do seu time do coração.",
     xp: 25,
   },
   11: {
     id: 11,
-    icon: <Swords size={48} />,
+    icon: <Swords size={32} />,
     title: "Rivalidade Histórica",
     description: "Avaliou um clássico da NBA.",
     xp: 40,
   },
   2: {
     id: 2,
-    icon: <PlusCircle size={48} />,
+    icon: <PlusCircle size={32} />,
     title: "Crítico Ativo",
     description: "Você já avaliou 10 jogos.",
     xp: 50,
   },
   12: {
     id: 12,
-    icon: <Calendar size={48} />,
+    icon: <Calendar size={32} />,
     title: "Maratonista",
     description: "Avaliou 5 jogos em uma única semana.",
     xp: 60,
   },
   6: {
     id: 6,
-    icon: <Clock size={48} />,
+    icon: <Clock size={32} />,
     title: "Na Prorrogação",
     description: "Avaliou um jogo que foi decidido na prorrogação.",
     xp: 75,
   },
   8: {
     id: 8,
-    icon: <ThumbsUp size={48} />,
+    icon: <ThumbsUp size={32} />,
     title: "Voz da Torcida",
     description: "Recebeu 10 curtidas em uma de suas avaliações.",
     xp: 100,
   },
   10: {
     id: 10,
-    icon: <BarChart size={48} />,
+    icon: <BarChart size={32} />,
     title: "Analista Tático",
     description: "Avaliou 25 jogos, detalhando notas de ataque e defesa.",
     xp: 150,
   },
   9: {
     id: 9,
-    icon: <Award size={48} />,
+    icon: <Award size={32} />,
     title: "Formador de Opinião",
     description: "Foi seguido por 10 usuários.",
     xp: 150,
   },
   13: {
     id: 13,
-    icon: <FileText size={48} />,
+    icon: <FileText size={32} />,
     title: "Crítico Experiente",
     description: "Alcançou a marca de 50 avaliações de jogos.",
     xp: 200,
   },
   14: {
     id: 14,
-    icon: <Gem size={48} />,
+    icon: <Gem size={32} />,
     title: "Ouro Puro",
     description: "Sua avaliação recebeu 50 curtidas.",
     xp: 200,
   },
   15: {
     id: 15,
-    icon: <Megaphone size={48} />,
+    icon: <Megaphone size={32} />,
     title: "Influenciador",
     description: "Conquistou uma base de 25 seguidores.",
     xp: 250,
   },
   16: {
     id: 16,
-    icon: <Award size={48} />,
+    icon: <Award size={32} />,
     title: "Lenda da Análise",
     description: "Tornou-se uma referência com 100 avaliações.",
     xp: 400,
   },
   17: {
     id: 17,
-    icon: <ShieldCheck size={48} />,
+    icon: <ShieldCheck size={32} />,
     title: "Especialista da Franquia",
     description: "Avaliou 25 jogos do seu time do coração.",
     xp: 250,
   },
   18: {
     id: 18,
-    icon: <Globe size={48} />,
+    icon: <Globe size={32} />,
     title: "Maratonista da NBA",
     description: "Avaliou um jogo de cada uma das 30 equipes da liga.",
     xp: 500,
@@ -330,231 +350,250 @@ export default function ProfilePage() {
         />
       )}
 
-      <header
-        className="rounded-xl p-6 flex flex-col md:flex-row items-center justify-between"
-        style={{
-          background: "linear-gradient(180deg, #2A3A54 0%, #1A2233 100%)",
-          borderBottom: "1px solid #374151",
-        }}
-      >
-        <div className="flex items-center flex-1">
-          <div className="relative">
-            <Image
-              alt="User avatar"
-              className="w-24 h-24 rounded-full border-4 object-cover"
-              src={
-                profile.foto_perfil
-                  ? `${process.env.NEXT_PUBLIC_API_URL}${profile.foto_perfil}`
-                  : "/placeholder.png"
-              }
-              width={96}
-              height={96}
-              style={{ borderColor: themeColor }}
-            />
-            {profile.time_favorito && (
-              <Image
-                alt="Team logo"
-                className="absolute bottom-0 right-0 w-12 h-12"
-                src={profile.time_favorito.logo_url}
-                width={48}
-                height={48}
+      <Card>
+        <Flex direction={{ initial: "column", md: "row" }} align="center" justify="between" gap="5">
+          <Flex align="center" gap="5">
+            <Box position="relative">
+              <Avatar
+                src={
+                  profile.foto_perfil
+                    ? `${process.env.NEXT_PUBLIC_API_URL}${profile.foto_perfil}`
+                    : "/placeholder.png"
+                }
+                fallback={profile.username[0]}
+                size="7"
+                radius="full"
               />
-            )}
-          </div>
-          <div className="ml-4">
-            <h1 className="text-xl font-bold text-white">
-              {profile.nome_completo || profile.username}
-            </h1>
-            <p className="text-gray-400">@{profile.username}</p>
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-4 mt-4 md:mt-0">
-          <div className="flex items-center gap-4">
-            {isMyProfile ? (
-              <button
-                onClick={() => setIsEditModalOpen(true)}
-                className="font-bold py-2 px-4 rounded-full flex items-center transition-colors text-white hover:brightness-110"
-                style={{ backgroundColor: themeColor }}
-              >
-                <Edit className="mr-2 h-4 w-4" /> Editar Perfil
-              </button>
-            ) : (
-              <button
-                onClick={handleFollowToggle}
-                className={`font-bold py-2 px-6 rounded-lg transition-colors ${
-                  isFollowing
-                    ? "bg-gray-600 hover:bg-red-700"
-                    : "bg-blue-500 hover:bg-blue-600"
-                }`}
-              >
-                {isFollowing ? "Seguindo" : "Seguir"}
-              </button>
-            )}
-            <Share2
-              className="h-6 w-6 text-gray-400 cursor-pointer hover:text-white"
-              onClick={handleShare}
-            />
-          </div>
-          <div className="bg-gray-700/50 rounded-lg p-2 flex items-center gap-6 text-center">
-            <div
-              className="cursor-pointer px-2"
-              onClick={() => handleOpenModal("followers")}
-            >
-              <p className="text-xl font-bold text-white">
-                {profile.total_seguidores}
-              </p>
-              <p className="text-gray-400 text-xs">SEGUIDORES</p>
-            </div>
-            <div
-              className="cursor-pointer px-2"
-              onClick={() => handleOpenModal("following")}
-            >
-              <p className="text-xl font-bold text-white">
-                {profile.total_seguindo}
-              </p>
-              <p className="text-gray-400 text-xs">SEGUINDO</p>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="flex justify-center my-6">
-        <div className="flex space-x-1 bg-gray-800 p-1 rounded-full">
-          <button
-            onClick={() => setActiveTab("last-week")}
-            className={`py-1.5 px-3 rounded-full text-sm font-medium cursor-pointer transition-colors ${
-              activeTab === "last-week"
-                ? "text-gray-900"
-                : "bg-transparent text-gray-400"
-            }`}
-            style={
-              activeTab === "last-week" ? { backgroundColor: themeColor } : {}
-            }
-          >
-            Última Semana
-          </button>
-          <button
-            onClick={() => setActiveTab("last-month")}
-            className={`py-1.5 px-3 rounded-full text-sm font-medium cursor-pointer transition-colors ${
-              activeTab === "last-month"
-                ? "text-gray-900"
-                : "bg-transparent text-gray-400"
-            }`}
-            style={
-              activeTab === "last-month" ? { backgroundColor: themeColor } : {}
-            }
-          >
-            Este Mês
-          </button>
-          <button
-            onClick={() => setActiveTab("all-time")}
-            className={`py-1.5 px-3 rounded-full text-sm font-medium cursor-pointer transition-colors ${
-              activeTab === "all-time"
-                ? "text-gray-900"
-                : "bg-transparent text-gray-400"
-            }`}
-            style={
-              activeTab === "all-time" ? { backgroundColor: themeColor } : {}
-            }
-          >
-            Todo o Período
-          </button>
-        </div>
-      </div>
-
-      {loadingStats || !stats ? (
-        <div className="text-center py-10">Carregando estatísticas...</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-[#2D3748] rounded-xl p-4 flex flex-col items-center justify-center text-center">
-            <ClipboardList style={{ color: themeColor }} className="h-8 w-8" />
-            <p className="text-3xl font-bold mt-2">{stats.total_avaliacoes}</p>
-            <p className="text-gray-400 text-sm">Avaliações</p>
-          </div>
-          <div className="bg-[#2D3748] rounded-xl p-4 flex flex-col items-center justify-center text-center">
-            <Award style={{ color: themeColor }} className="h-8 w-8" />
-            <p className="text-3xl font-bold mt-2">
-              {stats.media_geral.toFixed(2)}
-            </p>
-            <p className="text-gray-400 text-sm">Média</p>
-          </div>
-          <div className="bg-[#2D3748] rounded-xl p-4 md:col-span-1">
-            <h2 className="text-md font-bold text-center mb-3">
-              Distribuição de Notas
-            </h2>
-            <div className="flex justify-around items-end h-32 px-2 space-x-2">
-              {[5, 4, 3, 2, 1].map((rating) => (
-                <VerticalRatingBar
-                  key={rating}
-                  rating={rating}
-                  count={stats.distribuicao_notas[rating] || 0}
-                  maxCount={maxRatingCount}
-                  color={ratingColors[rating]}
+              {profile.time_favorito && (
+                <Avatar
+                  src={profile.time_favorito.logo_url}
+                  fallback="T"
+                  size="3"
+                  radius="full"
+                  style={{
+                    position: "absolute",
+                    bottom: "0",
+                    right: "0",
+                    border: "2px solid var(--gray-a2)",
+                  }}
                 />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+              )}
+            </Box>
+            <Box>
+              <Heading as="h1" size="6">
+                {profile.nome_completo || profile.username}
+              </Heading>
+              <Text as="p" color="gray" mb="2">
+                @{profile.username}
+              </Text>
+              {profile.bio && (
+                <Text as="p" size="3" style={{ maxWidth: "400px" }}>
+                  {profile.bio}
+                </Text>
+              )}
+            </Box>
+          </Flex>
+          <Flex direction="column" align={{ initial: "center", md: "end" }} gap="4">
+            <Flex align="center" gap="4">
+              {isMyProfile ? (
+                <Button onClick={() => setIsEditModalOpen(true)}>
+                  <Pencil2Icon /> Editar Perfil
+                </Button>
+              ) : (
+                <Button onClick={handleFollowToggle} variant={isFollowing ? "soft" : "solid"}>
+                  {isFollowing ? "Seguindo" : "Seguir"}
+                </Button>
+              )}
+              <IconButton onClick={handleShare} variant="ghost">
+                <Share2Icon />
+              </IconButton>
+            </Flex>
+            <Flex gap="5" align="center">
+              <RadixLink onClick={() => handleOpenModal("followers")} size="2" weight="bold">
+                <Flex align="center" gap="1">
+                  <Text>{profile.total_seguidores}</Text>
+                  <Text color="gray">Seguidores</Text>
+                </Flex>
+              </RadixLink>
+              <RadixLink onClick={() => handleOpenModal("following")} size="2" weight="bold">
+                <Flex align="center" gap="1">
+                  <Text>{profile.total_seguindo}</Text>
+                  <Text color="gray">Seguindo</Text>
+                </Flex>
+              </RadixLink>
+            </Flex>
+          </Flex>
+        </Flex>
+      </Card>
 
-      <div className="bg-[#2D3748] rounded-xl p-6 my-6">
-        <h2 className="text-xl font-bold mb-6">Conquistas</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6 text-center">
-          {Object.values(allAchievements).map((ach) => (
-            <AchievementCard
-              key={ach.id}
-              icon={ach.icon}
-              title={ach.title}
-              description={ach.description}
-              xp={ach.xp}
-              unlocked={unlockedAchievementIds.has(ach.id)}
-              themeColor={themeColor}
-            />
-          ))}
-        </div>
-      </div>
+      <Tabs.Root value={activeTab} onValueChange={setActiveTab} mt="6">
+        <Tabs.List align="center">
+          <Tabs.Trigger value="last-week">Última Semana</Tabs.Trigger>
+          <Tabs.Trigger value="last-month">Este Mês</Tabs.Trigger>
+          <Tabs.Trigger value="all-time">Todo o Período</Tabs.Trigger>
+        </Tabs.List>
+      </Tabs.Root>
 
-      <div className="bg-[#2D3748] rounded-xl p-6">
-        <h2 className="text-xl font-bold mb-4">Avaliações Recentes</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {profile.avaliacoes_recentes.length > 0 ? (
-            profile.avaliacoes_recentes.map((review) => (
-              <Link
-                href={`/jogos/${review.jogo.slug}`}
-                key={review.id}
-                className="block bg-slate-800/50 p-4 rounded-lg hover:bg-slate-800/80 transition-colors"
-              >
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="font-bold text-sm">
-                    {review.jogo.time_visitante.sigla} @{" "}
-                    {review.jogo.time_casa.sigla}
-                  </h4>
-                  <span className="text-xs text-gray-400">
-                    {new Date(review.data_avaliacao).toLocaleDateString(
-                      "pt-BR"
-                    )}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-400 mb-2">
-                  Nota:{" "}
-                  <span className="font-bold text-lg text-yellow-400">
-                    {review.nota_geral.toFixed(1)}
-                  </span>
-                </p>
-                {review.resenha && (
-                  <p className="text-sm mt-2 italic text-gray-300 line-clamp-2">
-                    "{review.resenha}"
-                  </p>
+      <Box my="6">
+        {loadingStats || !stats ? (
+          <Flex align="center" justify="center" p="5">
+            <Spinner />
+            <Text ml="2">Carregando estatísticas...</Text>
+          </Flex>
+        ) : (
+          <Card>
+            <Flex direction="column" gap="4" p="4">
+              {/* Estatísticas principais em linha */}
+              <Grid columns={{ initial: "2", md: "3", lg: "6" }} gap="4">
+                <Flex direction="column" align="center" p="3" style={{ backgroundColor: "var(--gray-2)", borderRadius: "8px" }}>
+                  <Flex align="center" gap="2" mb="1">
+                    <FileText size={20} color="var(--blue-9)" />
+                    <Text size="4" weight="bold">{stats.total_avaliacoes}</Text>
+                  </Flex>
+                  <Text size="2" color="gray">Avaliações</Text>
+                </Flex>
+                
+                <Flex direction="column" align="center" p="3" style={{ backgroundColor: "var(--gray-2)", borderRadius: "8px" }}>
+                  <Flex align="center" gap="2" mb="1">
+                    <Star size={20} color="var(--amber-9)" />
+                    <Text size="4" weight="bold">{stats.media_geral.toFixed(2)}</Text>
+                  </Flex>
+                  <Text size="2" color="gray">Média Geral</Text>
+                </Flex>
+
+                <Flex direction="column" align="center" p="3" style={{ backgroundColor: "var(--gray-2)", borderRadius: "8px" }}>
+                  <Flex align="center" gap="2" mb="1">
+                    <Award size={20} color="var(--green-9)" />
+                    <Text size="4" weight="bold">
+                      {Math.max(...Object.values(stats.distribuicao_notas))}
+                    </Text>
+                  </Flex>
+                  <Text size="2" color="gray">Nota Mais Dada</Text>
+                </Flex>
+
+                <Flex direction="column" align="center" p="3" style={{ backgroundColor: "var(--gray-2)", borderRadius: "8px" }}>
+                  <Flex align="center" gap="2" mb="1">
+                    <BarChart size={20} color="var(--purple-9)" />
+                    <Text size="4" weight="bold">
+                      {Object.keys(stats.distribuicao_notas).filter(k => stats.distribuicao_notas[k] > 0).length}
+                    </Text>
+                  </Flex>
+                  <Text size="2" color="gray">Notas Diferentes</Text>
+                </Flex>
+
+                {/* MVP Mais Votado */}
+                {stats.mvp_mais_votado && (
+                  <Flex direction="column" align="center" p="3" style={{ backgroundColor: "var(--green-2)", borderRadius: "8px", border: "1px solid var(--green-6)" }}>
+                    <Flex align="center" gap="2" mb="1">
+                      <Award size={20} color="var(--green-9)" />
+                      <Text size="4" weight="bold">{stats.mvp_mais_votado.votos}</Text>
+                    </Flex>
+                    <Text size="2" color="gray" align="center">
+                      {stats.mvp_mais_votado.jogador.nome.split(' ')[0]} MVP
+                    </Text>
+                  </Flex>
                 )}
+
+                {/* Decepção Mais Votada */}
+                {stats.decepcao_mais_votada && (
+                  <Flex direction="column" align="center" p="3" style={{ backgroundColor: "var(--red-2)", borderRadius: "8px", border: "1px solid var(--red-6)" }}>
+                    <Flex align="center" gap="2" mb="1">
+                      <ThumbsDown size={20} color="var(--red-9)" />
+                      <Text size="4" weight="bold">{stats.decepcao_mais_votada.votos}</Text>
+                    </Flex>
+                    <Text size="2" color="gray" align="center">
+                      {stats.decepcao_mais_votada.jogador.nome.split(' ')[0]} Decepção
+                    </Text>
+                  </Flex>
+                )}
+              </Grid>
+
+              {/* Distribuição de Notas */}
+              <Box>
+                <Heading size="4" mb="3" align="center">
+                  Distribuição de Notas
+                </Heading>
+                <Flex justify="center" align="end" style={{ height: "120px" }} gap="3">
+                  {[5, 4, 3, 2, 1].map((rating) => (
+                    <VerticalRatingBar
+                      key={rating}
+                      rating={rating}
+                      count={stats.distribuicao_notas[rating] || 0}
+                      maxCount={maxRatingCount}
+                      color={ratingColors[rating]}
+                    />
+                  ))}
+                </Flex>
+              </Box>
+            </Flex>
+          </Card>
+        )}
+      </Box>
+
+      <Card>
+        <Heading as="h2" size="5" mb="5">
+          Conquistas
+        </Heading>
+        <Grid columns={{ initial: "2", sm: "3", md: "4", lg: "6" }} gap="4">
+          {Object.values(allAchievements).map((ach) => (
+            <Card
+              key={ach.id}
+              style={{
+                opacity: unlockedAchievementIds.has(ach.id) ? 1 : 0.4,
+                textAlign: "center",
+              }}
+            >
+              <Flex direction="column" align="center" justify="center" gap="2">
+                <Box style={{ color: themeColor }}>{ach.icon}</Box>
+                <Text size="2" weight="bold">
+                  {ach.title}
+                </Text>
+              </Flex>
+            </Card>
+          ))}
+        </Grid>
+      </Card>
+
+      <Card mt="6">
+        <Heading as="h2" size="5" mb="5">
+          Avaliações Recentes
+        </Heading>
+        {profile.avaliacoes_recentes.length > 0 ? (
+          <Grid columns={{ initial: "1", md: "2", lg: "3" }} gap="4">
+            {profile.avaliacoes_recentes.map((review) => (
+              <Link href={`/jogos/${review.jogo.slug}?review=${review.id}`} key={review.id} passHref>
+                <Card asChild>
+                  <a className="hover:opacity-80 transition-opacity">
+                    <Flex justify="between" mb="2">
+                      <Text weight="bold" size="2">
+                        {review.jogo.time_visitante.sigla} @ {review.jogo.time_casa.sigla}
+                      </Text>
+                      <Text size="1" color="gray">
+                        {new Date(review.data_avaliacao).toLocaleDateString("pt-BR")}
+                      </Text>
+                    </Flex>
+                    <Text as="p" size="2" color="gray" mb="2">
+                      Nota:{" "}
+                      <Text weight="bold" color="amber">
+                        {review.nota_geral.toFixed(1)}
+                      </Text>
+                    </Text>
+                    {review.resenha && (
+                      <Text as="p" size="2" trim="both" truncate>
+                        &quot;{review.resenha}&quot;
+                      </Text>
+                    )}
+                  </a>
+                </Card>
               </Link>
-            ))
-          ) : (
-            <div className="col-span-full text-center text-gray-500 py-8">
-              <p>Nenhuma avaliação encontrada com os filtros selecionados.</p>
-            </div>
-          )}
-        </div>
-      </div>
+            ))}
+          </Grid>
+        ) : (
+          <Flex align="center" justify="center" p="5">
+            <Text color="gray">Nenhuma avaliação encontrada com os filtros selecionados.</Text>
+          </Flex>
+        )}
+      </Card>
     </main>
   );
 }

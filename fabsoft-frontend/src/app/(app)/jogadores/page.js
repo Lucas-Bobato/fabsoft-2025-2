@@ -1,9 +1,19 @@
 "use client";
 import { useState, useEffect } from "react";
 import api from "@/services/api";
-import Image from "next/image";
 import Link from "next/link";
 import { Search } from "lucide-react";
+import {
+  Box,
+  Grid,
+  Heading,
+  Text,
+  Spinner,
+  Flex,
+  Avatar,
+  Card,
+  TextField,
+} from "@radix-ui/themes";
 
 const normalizeText = (text) => {
   return text
@@ -42,51 +52,72 @@ export default function JogadoresPage() {
   }, [searchTerm, players]);
 
   return (
-    <main className="container mx-auto px-6 py-8 max-w-screen-xl">
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
-        <h1 className="text-3xl font-bold">Jogadores da Liga</h1>
-        <div className="relative w-full sm:w-72">
-          <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-            size={20}
-          />
-          <input
-            type="text"
+    <Box maxWidth="1280px" mx="auto" px="6" py="6">
+      <Flex
+        direction={{ initial: "column", sm: "row" }}
+        justify="between"
+        align="center"
+        mb="6"
+        gap="4"
+      >
+        <Heading size="8">Jogadores da Liga</Heading>
+        <Box width={{ initial: "100%", sm: "300px" }}>
+          <TextField.Root
             placeholder="Buscar jogador..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-gray-900/70 border border-gray-600 rounded-lg py-3 pr-4 pl-10 focus:ring-2 focus:ring-[#4DA6FF] focus:outline-none transition-all placeholder-gray-500"
-          />
-        </div>
-      </div>
+          >
+            <TextField.Slot>
+              <Search size={16} />
+            </TextField.Slot>
+          </TextField.Root>
+        </Box>
+      </Flex>
 
       {loading ? (
-        <p>Carregando jogadores...</p>
+        <Flex justify="center" align="center" p="8">
+          <Spinner size="3" />
+          <Text ml="2">Carregando jogadores...</Text>
+        </Flex>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <Grid columns={{ initial: "2", sm: "3", md: "4", lg: "5" }} gap="4">
           {filteredPlayers.map((player) => (
-            <Link
-              key={player.id}
-              href={`/jogadores/${player.slug}`}
-              className="bg-[#133B5C] border border-gray-800 p-4 rounded-lg flex flex-col items-center text-center hover:border-gray-600 transition-colors"
-            >
-              <Image
-                src={player.foto_url || "/placeholder.png"}
-                alt={player.nome}
-                width={80}
-                height={80}
-                className="w-20 h-20 rounded-full object-cover bg-gray-700 mb-2"
-              />
-              <p className="font-bold text-white mt-2">{player.nome}</p>
-              {player.time_atual && (
-                <p className="text-xs text-gray-400">
-                  {player.time_atual.sigla}
-                </p>
-              )}
-            </Link>
+            <Card asChild key={player.id}>
+              <Link
+                href={`/jogadores/${player.slug}`}
+                style={{
+                  textDecoration: "none",
+                  transition: "transform 0.2s",
+                }}
+                onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.02)"}
+                onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
+              >
+                <Flex direction="column" align="center" gap="3" p="4">
+                  <Avatar
+                    src={player.foto_url || "/placeholder.png"}
+                    alt={player.nome}
+                    fallback={player.nome.split(' ').map(n => n[0]).join('')}
+                    size="5"
+                    radius="full"
+                  />
+                  <Box style={{ textAlign: "center" }}>
+                    <Text size="2" weight="bold" mb="2">
+                      {player.nome}
+                    </Text>
+                    {player.time_atual && (
+                      <Flex direction="column" align="center" gap="1">
+                        <Text size="1" color="gray">
+                          {player.time_atual.nome}
+                        </Text>
+                      </Flex>
+                    )}
+                  </Box>
+                </Flex>
+              </Link>
+            </Card>
           ))}
-        </div>
+        </Grid>
       )}
-    </main>
+    </Box>
   );
 }

@@ -8,10 +8,8 @@ import {
   translateNationality,
   translateAward,
 } from "@/utils/translations";
-import Image from "next/image";
 import Link from "next/link";
 import {
-  Shirt,
   Cake,
   Ruler,
   Weight,
@@ -19,17 +17,34 @@ import {
   Calendar,
   Award,
 } from "lucide-react";
+import {
+  Box,
+  Flex,
+  Grid,
+  Heading,
+  Text,
+  Avatar,
+  Card,
+  Tabs,
+  Table,
+  Badge,
+  Spinner,
+} from "@radix-ui/themes";
 
 // --- COMPONENTES DA PÁGINA ---
 
 const StatItem = ({ icon, label, value }) => (
-  <div className="flex flex-col items-center text-center">
-    <div className="flex items-center justify-center h-8 text-gray-400">
+  <Flex direction="column" align="center" gap="2">
+    <Box color="gray" style={{ height: '32px' }}>
       {icon}
-    </div>
-    <p className="text-sm text-gray-400 mt-1">{label}</p>
-    <p className="font-bold text-lg text-white">{value}</p>
-  </div>
+    </Box>
+    <Text size="2" color="gray">
+      {label}
+    </Text>
+    <Text size="4" weight="bold">
+      {value}
+    </Text>
+  </Flex>
 );
 
 const GameListItem = ({ game, teamId }) => {
@@ -43,45 +58,44 @@ const GameListItem = ({ game, teamId }) => {
     : null;
 
   return (
-    <Link
-      href={`/jogos/${game.slug}`}
-      className="flex items-center justify-between p-2 rounded-md hover:bg-slate-700/50"
-    >
-      <div className="flex items-center gap-3">
-        <Image
-          src={opponent.logo_url}
-          alt={opponent.nome}
-          width={24}
-          height={24}
-        />
-        <span className="text-sm font-semibold">
-          {isHome ? "vs" : "@"} {opponent.sigla}
-        </span>
-      </div>
-      {isFinished ? (
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-              won
-                ? "bg-green-500/30 text-green-300"
-                : "bg-red-500/30 text-red-300"
-            }`}
-          >
-            {won ? "V" : "D"}
-          </span>
-          <span className="text-sm font-mono">
-            {game.placar_visitante}-{game.placar_casa}
-          </span>
-        </div>
-      ) : (
-        <span className="text-xs text-gray-400">
-          {new Date(game.data_jogo).toLocaleDateString("pt-BR", {
-            day: "2-digit",
-            month: "2-digit",
-          })}
-        </span>
-      )}
-    </Link>
+    <Card asChild>
+      <Link href={`/jogos/${game.slug}`}>
+        <Flex justify="between" align="center" p="2">
+          <Flex align="center" gap="3">
+            <Avatar
+              src={opponent.logo_url}
+              alt={opponent.nome}
+              size="2"
+              fallback={opponent.sigla}
+            />
+            <Text size="2" weight="medium">
+              {isHome ? "vs" : "@"} {opponent.sigla}
+            </Text>
+          </Flex>
+          {isFinished ? (
+            <Flex align="center" gap="2">
+              <Badge 
+                color={won ? "green" : "red"} 
+                variant="soft"
+                size="1"
+              >
+                {won ? "V" : "D"}
+              </Badge>
+              <Text size="2" style={{ fontFamily: 'monospace' }}>
+                {game.placar_visitante}-{game.placar_casa}
+              </Text>
+            </Flex>
+          ) : (
+            <Text size="1" color="gray">
+              {new Date(game.data_jogo).toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "2-digit",
+              })}
+            </Text>
+          )}
+        </Flex>
+      </Link>
+    </Card>
   );
 };
 
@@ -129,8 +143,20 @@ const PlayerProfilePage = () => {
   }, [slug]);
 
   if (loading)
-    return <p className="text-center mt-8">Carregando perfil do jogador...</p>;
-  if (error) return <p className="text-center mt-8 text-red-500">{error}</p>;
+    return (
+      <Box p="8">
+        <Flex justify="center" align="center" gap="2">
+          <Spinner size="3" />
+          <Text>Carregando perfil do jogador...</Text>
+        </Flex>
+      </Box>
+    );
+  if (error) 
+    return (
+      <Box p="8">
+        <Text align="center" color="red">{error}</Text>
+      </Box>
+    );
   if (!player) return null;
 
   const colors = teamColors[player.time_atual.sigla] || {
@@ -140,274 +166,283 @@ const PlayerProfilePage = () => {
   const latestStats = player.stats_por_temporada[0] || {};
 
   return (
-    <main className="container mx-auto px-6 py-8 max-w-screen-xl">
+    <Box maxWidth="1280px" mx="auto" p="6">
       {/* Cabeçalho do Jogador */}
-      <div
-        className="p-6 rounded-lg flex flex-col sm:flex-row items-center gap-6"
+      <Box
         style={{
           background: `linear-gradient(135deg, ${colors.primary}`,
-          color: colors.text,
+          borderRadius: '12px',
+          border: '1px solid rgba(255,255,255,0.1)',
         }}
       >
-        <Image
-          src={player.foto_url || "/placeholder.png"}
-          alt={`Foto de ${player.nome_normalizado}`}
-          width={128}
-          height={128}
-          className="w-32 h-32 rounded-full object-cover border-4 border-white/20 bg-gray-700"
-        />
-        <div>
-          <p className="text-lg opacity-90 text-center sm:text-left">
-            {player.time_atual.nome} | #{player.numero_camisa}
-          </p>
-          <h1 className="text-4xl font-bold text-center sm:text-left">
-            {player.nome}
-          </h1>
-          <p className="text-xl opacity-90 text-center sm:text-left">
-            {translatePosition(player.posicao)}
-          </p>
-        </div>
-      </div>
+        <Flex direction={{ initial: "column", sm: "row" }} align="center" gap="6" p="6">
+          <Avatar
+            src={player.foto_url || "/placeholder.png"}
+            alt={`Foto de ${player.nome_normalizado}`}
+            size="9"
+            fallback={player.nome?.charAt(0) || "?"}
+            style={{ border: '4px solid rgba(255,255,255,0.2)' }}
+          />
+          <Box>
+            <Text size="4" style={{ opacity: 0.9, color: colors.text }}>
+              {player.time_atual.nome} | #{player.numero_camisa}
+            </Text>
+            <Heading size="8" mb="2" style={{ color: colors.text }}>
+              {player.nome}
+            </Heading>
+            <Text size="5" style={{ opacity: 0.9, color: colors.text }}>
+              {translatePosition(player.posicao)}
+            </Text>
+          </Box>
+        </Flex>
+      </Box>
 
       {/* Abas de Navegação */}
-      <div className="mt-4 border-b border-gray-800">
-        <nav className="flex gap-6">
-          <button
-            onClick={() => setActiveTab("overview")}
-            className={`tab-button ${
-              activeTab === "overview" ? "active-tab" : ""
-            }`}
-          >
-            Visão Geral
-          </button>
-          <button
-            onClick={() => setActiveTab("stats")}
-            className={`tab-button ${
-              activeTab === "stats" ? "active-tab" : ""
-            }`}
-          >
-            Estatísticas
-          </button>
-          <button
-            onClick={() => setActiveTab("games")}
-            className={`tab-button ${
-              activeTab === "games" ? "active-tab" : ""
-            }`}
-          >
-            Log de Jogos
-          </button>
-        </nav>
-      </div>
+      <Tabs.Root value={activeTab} onValueChange={setActiveTab}>
+        <Tabs.List size="2" mt="4">
+          <Tabs.Trigger value="overview">Visão Geral</Tabs.Trigger>
+          <Tabs.Trigger value="stats">Estatísticas</Tabs.Trigger>
+          <Tabs.Trigger value="games">Log de Jogos</Tabs.Trigger>
+        </Tabs.List>
 
-      {/* Conteúdo das Abas */}
-      <div className="mt-6">
-        {activeTab === "overview" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-8">
-              {/* Card de Informações Biográficas */}
-              <div className="bg-card p-6 rounded-lg grid grid-cols-2 md:grid-cols-3 gap-6">
-                <StatItem
-                  icon={<Cake />}
-                  label="Idade"
-                  value={player.idade || "N/A"}
-                />
-                <StatItem
-                  icon={<Ruler />}
-                  label="Altura"
-                  value={player.altura ? `${player.altura} cm` : "N/A"}
-                />
-                <StatItem
-                  icon={<Weight />}
-                  label="Peso"
-                  value={player.peso ? `${player.peso} kg` : "N/A"}
-                />
-                <StatItem
-                  icon={<Flag />}
-                  label="Nacionalidade"
-                  value={translateNationality(player.nacionalidade)}
-                />
-                <StatItem
-                  icon={<Calendar />}
-                  label="Draft"
-                  value={player.ano_draft || "N/A"}
-                />
-                <StatItem
-                  icon={<Award />}
-                  label="Experiência"
-                  value={`${player.anos_experiencia || 0} anos`}
-                />
-              </div>
+        {/* Conteúdo das Abas */}
+        <Tabs.Content value="overview" mt="6">
+          <Grid columns={{ initial: "1", lg: "3" }} gap="8">
+            <Box style={{ gridColumn: "1 / span 2" }}>
+              <Flex direction="column" gap="8">
+                {/* Card de Informações Biográficas */}
+                <Card size="3">
+                  <Grid columns={{ initial: "2", md: "3" }} gap="6" p="6">
+                    <StatItem
+                      icon={<Cake />}
+                      label="Idade"
+                      value={player.idade || "N/A"}
+                    />
+                    <StatItem
+                      icon={<Ruler />}
+                      label="Altura"
+                      value={player.altura ? `${player.altura} cm` : "N/A"}
+                    />
+                    <StatItem
+                      icon={<Weight />}
+                      label="Peso"
+                      value={player.peso ? `${player.peso} kg` : "N/A"}
+                    />
+                    <StatItem
+                      icon={<Flag />}
+                      label="Nacionalidade"
+                      value={translateNationality(player.nacionalidade)}
+                    />
+                    <StatItem
+                      icon={<Calendar />}
+                      label="Draft"
+                      value={player.ano_draft || "N/A"}
+                    />
+                    <StatItem
+                      icon={<Award />}
+                      label="Experiência"
+                      value={`${player.anos_experiencia || 0} anos`}
+                    />
+                  </Grid>
+                </Card>
 
-              {/* Card de Prêmios */}
-              <div className="bg-card p-6 rounded-lg">
-                <h3 className="text-xl font-bold text-white mb-4">Prêmios</h3>
-                {player.conquistas.length > 0 ? (
-                  <ul className="text-white space-y-2 columns-1 md:columns-2">
-                    {player.conquistas.map((c, i) => (
-                      <li key={i} className="break-inside-avoid">
-                        - {translateAward(c.nome_conquista)}{" "}
-                        {c.temporada && `(${c.temporada})`}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>Nenhum prêmio registrado.</p>
-                )}
-              </div>
-            </div>
+                {/* Card de Prêmios */}
+                <Card size="3">
+                  <Box p="6">
+                    <Heading size="5" mb="4">Prêmios</Heading>
+                    {player.conquistas.length > 0 ? (
+                      <Box style={{ columnCount: 'auto', columnWidth: '250px' }}>
+                        <Flex direction="column" gap="2">
+                          {player.conquistas.map((c, i) => (
+                            <Text key={i} size="2">
+                              • {translateAward(c.nome_conquista)}{" "}
+                              {c.temporada && `(${c.temporada})`}
+                            </Text>
+                          ))}
+                        </Flex>
+                      </Box>
+                    ) : (
+                      <Text>Nenhum prêmio registrado.</Text>
+                    )}
+                  </Box>
+                </Card>
+              </Flex>
+            </Box>
 
             {/* Coluna da Direita */}
-            <aside className="lg:col-span-1 space-y-8">
-              <div className="bg-card p-6 rounded-lg">
-                <h3 className="font-bold text-white mb-3">
-                  Temporada {latestStats.temporada}
-                </h3>
-                <div className="flex justify-around text-center">
-                  <div>
-                    <p className="text-3xl font-bold text-white">
-                      {latestStats.pontos_por_jogo || "0.0"}
-                    </p>
-                    <p className="text-sm">PPG</p>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-white">
-                      {latestStats.rebotes_por_jogo || "0.0"}
-                    </p>
-                    <p className="text-sm">RPG</p>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-bold text-white">
-                      {latestStats.assistencias_por_jogo || "0.0"}
-                    </p>
-                    <p className="text-sm">APG</p>
-                  </div>
-                </div>
-              </div>
-              {schedule && (
-                <div className="bg-card p-4 rounded-lg">
-                  <h3 className="font-bold text-white mb-2">Jogos</h3>
-                  <div className="space-y-2">
-                    {schedule.recent.length > 0 && (
-                      <h4 className="text-xs text-gray-400 uppercase font-bold">
-                        Recentes
-                      </h4>
-                    )}
-                    {schedule.recent
-                      .slice(0)
-                      .reverse()
-                      .map((game) => (
-                        <GameListItem
-                          key={game.id}
-                          game={game}
-                          teamId={player.time_atual.id}
-                        />
-                      ))}
+            <Box>
+              <Flex direction="column" gap="8">
+                <Card size="3">
+                  <Box p="6">
+                    <Heading size="4" mb="3">
+                      Temporada {latestStats.temporada}
+                    </Heading>
+                    <Grid columns="3" gap="4">
+                      <Flex direction="column" align="center">
+                        <Text size="7" weight="bold">
+                          {latestStats.pontos_por_jogo || "0.0"}
+                        </Text>
+                        <Text size="2" color="gray">PPG</Text>
+                      </Flex>
+                      <Flex direction="column" align="center">
+                        <Text size="7" weight="bold">
+                          {latestStats.rebotes_por_jogo || "0.0"}
+                        </Text>
+                        <Text size="2" color="gray">RPG</Text>
+                      </Flex>
+                      <Flex direction="column" align="center">
+                        <Text size="7" weight="bold">
+                          {latestStats.assistencias_por_jogo || "0.0"}
+                        </Text>
+                        <Text size="2" color="gray">APG</Text>
+                      </Flex>
+                    </Grid>
+                  </Box>
+                </Card>
+                
+                {schedule && (
+                  <Card size="3">
+                    <Box p="4">
+                      <Heading size="4" mb="2">Jogos</Heading>
+                      <Flex direction="column" gap="2">
+                        {schedule.recent.length > 0 && (
+                          <Text size="1" weight="bold" color="gray" style={{ textTransform: 'uppercase' }}>
+                            Recentes
+                          </Text>
+                        )}
+                        {schedule.recent
+                          .slice(0)
+                          .reverse()
+                          .map((game) => (
+                            <GameListItem
+                              key={game.id}
+                              game={game}
+                              teamId={player.time_atual.id}
+                            />
+                          ))}
 
-                    {schedule.upcoming.length > 0 && (
-                      <h4 className="text-xs text-gray-400 uppercase font-bold mt-3">
-                        Próximos
-                      </h4>
-                    )}
-                    {schedule.upcoming.map((game) => (
-                      <GameListItem
-                        key={game.id}
-                        game={game}
-                        teamId={player.time_atual.id}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </aside>
-          </div>
-        )}
+                        {schedule.upcoming.length > 0 && (
+                          <Text size="1" weight="bold" color="gray" style={{ textTransform: 'uppercase' }} mt="3">
+                            Próximos
+                          </Text>
+                        )}
+                        {schedule.upcoming.map((game) => (
+                          <GameListItem
+                            key={game.id}
+                            game={game}
+                            teamId={player.time_atual.id}
+                          />
+                        ))}
+                      </Flex>
+                    </Box>
+                  </Card>
+                )}
+              </Flex>
+            </Box>
+          </Grid>
+        </Tabs.Content>
 
-        {activeTab === "stats" && (
-          <div className="bg-card rounded-lg overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="text-gray-400">
-                <tr className="border-b border-gray-800">
-                  <th className="p-3">Temporada</th>
-                  <th>J</th>
-                  <th>PPG</th>
-                  <th>RPG</th>
-                  <th>APG</th>
-                </tr>
-              </thead>
-              <tbody className="text-white font-mono">
+        <Tabs.Content value="stats" mt="6">
+          <Card size="3">
+            <Table.Root>
+              <Table.Header>
+                <Table.Row>
+                  <Table.ColumnHeaderCell>Temporada</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>J</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>PPG</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>RPG</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>APG</Table.ColumnHeaderCell>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
                 {player.stats_por_temporada.map((s) => (
-                  <tr key={s.temporada} className="border-b border-gray-800">
-                    <td className="p-3 font-sans font-semibold">
-                      {s.temporada}
-                    </td>
-                    <td>{s.jogos_disputados}</td>
-                    <td>{s.pontos_por_jogo}</td>
-                    <td>{s.rebotes_por_jogo}</td>
-                    <td>{s.assistencias_por_jogo}</td>
-                  </tr>
+                  <Table.Row key={s.temporada}>
+                    <Table.Cell>
+                      <Text weight="medium">{s.temporada}</Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text style={{ fontFamily: 'monospace' }}>
+                        {s.jogos_disputados}
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text style={{ fontFamily: 'monospace' }}>
+                        {s.pontos_por_jogo}
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text style={{ fontFamily: 'monospace' }}>
+                        {s.rebotes_por_jogo}
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text style={{ fontFamily: 'monospace' }}>
+                        {s.assistencias_por_jogo}
+                      </Text>
+                    </Table.Cell>
+                  </Table.Row>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              </Table.Body>
+            </Table.Root>
+          </Card>
+        </Tabs.Content>
 
-        {activeTab === "games" && (
-          <div className="bg-card rounded-lg overflow-x-auto">
-            <h3 className="text-xl font-bold text-white p-3">
-              Log de Jogos -{" "}
-              {gameLog.length > 0
-                ? player.stats_por_temporada[0].temporada
-                : ""}
-            </h3>
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="text-gray-400">
-                <tr className="border-b border-gray-800">
-                  <th className="p-3">Data</th>
-                  <th>ADV</th>
-                  <th>PTS</th>
-                  <th>REB</th>
-                  <th>AST</th>
-                </tr>
-              </thead>
-              <tbody className="text-white font-mono">
+        <Tabs.Content value="games" mt="6">
+          <Card size="3">
+            <Box p="3">
+              <Heading size="5" mb="3">
+                Log de Jogos -{" "}
+                {gameLog.length > 0
+                  ? player.stats_por_temporada[0].temporada
+                  : ""}
+              </Heading>
+            </Box>
+            <Table.Root>
+              <Table.Header>
+                <Table.Row>
+                  <Table.ColumnHeaderCell>Data</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>ADV</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>PTS</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>REB</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>AST</Table.ColumnHeaderCell>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
                 {gameLog.map((g) => (
-                  <tr key={g.jogo_id} className="border-b border-gray-800">
-                    <td className="p-3 font-sans font-semibold">
-                      {new Date(g.data_jogo).toLocaleDateString("pt-BR")}
-                    </td>
-                    <td>{g.adversario.sigla}</td>
-                    <td>{g.pontos}</td>
-                    <td>{g.rebotes}</td>
-                    <td>{g.assistencias}</td>
-                  </tr>
+                  <Table.Row key={g.jogo_id}>
+                    <Table.Cell>
+                      <Text weight="medium">
+                        {new Date(g.data_jogo).toLocaleDateString("pt-BR")}
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text style={{ fontFamily: 'monospace' }}>
+                        {g.adversario.sigla}
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text style={{ fontFamily: 'monospace' }}>
+                        {g.pontos}
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text style={{ fontFamily: 'monospace' }}>
+                        {g.rebotes}
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text style={{ fontFamily: 'monospace' }}>
+                        {g.assistencias}
+                      </Text>
+                    </Table.Cell>
+                  </Table.Row>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <style jsx>{`
-        .tab-button {
-          padding: 0.75rem 0.25rem;
-          font-weight: 600;
-          transition: color 0.2s, border-color 0.2s;
-          color: #9ca3af; /* gray-400 */
-          border-bottom: 2px solid transparent;
-        }
-        .tab-button:hover {
-          color: #ffffff;
-        }
-        .tab-button.active-tab {
-          color: #ffffff;
-          border-bottom-color: #ffffff;
-        }
-        .bg-card {
-          background-color: #161b22;
-          border: 1px solid #30363d;
-        }
-      `}</style>
-    </main>
+              </Table.Body>
+            </Table.Root>
+          </Card>
+        </Tabs.Content>
+      </Tabs.Root>
+    </Box>
   );
 };
 

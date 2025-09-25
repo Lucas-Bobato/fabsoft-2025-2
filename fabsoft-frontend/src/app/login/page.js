@@ -2,6 +2,18 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import {
+  Flex,
+  Box,
+  Text,
+  Button,
+  TextField,
+  Card,
+  Heading,
+  Link as RadixLink,
+  Callout,
+} from "@radix-ui/themes";
+import { InfoCircledIcon } from "@radix-ui/react-icons";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -24,96 +36,84 @@ export default function LoginPage() {
   };
 
   return (
-    <div
-      className="flex flex-col items-center justify-center min-h-screen p-6 text-white antialiased"
+    <Flex
+      align="center"
+      justify="center"
       style={{
+        minHeight: "100vh",
         backgroundImage:
           "linear-gradient(rgba(10, 37, 64, 0.85), rgba(19, 59, 92, 0.95)), url('https://images.unsplash.com/photo-1519861531473-9200262188bf?q=80&w=2071&auto=format&fit=crop')",
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}
     >
-      <div className="w-full max-w-md bg-[#0A2540]/80 backdrop-blur-lg border border-gray-700 rounded-2xl shadow-2xl p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold tracking-tighter mb-2">
+      <Card size="4" style={{ width: "100%", maxWidth: "450px" }}>
+        <Box mb="6" align="center">
+          <Heading size="8" mb="2">
             SlamTalks
-          </h1>
-          <p className="text-gray-400">Bem-vindo de volta, fã de basquete!</p>
-        </div>
+          </Heading>
+          <Text as="p" color="gray">
+            Bem-vindo de volta, fã de basquete!
+          </Text>
+        </Box>
 
-        {/* Componente para exibir a mensagem de erro */}
         {error && (
-          <div
-            className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg mb-6 text-center"
-            role="alert"
-          >
-            <p>{error}</p>
-          </div>
+          <Callout.Root color="red" role="alert" mb="5">
+            <Callout.Icon>
+              <InfoCircledIcon />
+            </Callout.Icon>
+            <Callout.Text>{error}</Callout.Text>
+          </Callout.Root>
         )}
 
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-300"
-            >
-              E-mail
+        <form onSubmit={handleSubmit}>
+          <Flex direction="column" gap="4">
+            <label>
+              <Text as="div" size="2" mb="1" weight="bold">
+                E-mail
+              </Text>
+              <TextField.Root
+                size="3"
+                type="email"
+                placeholder="seu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input-style" // Usando a classe global
-              placeholder="seu@email.com"
-            />
-          </div>
-          <div>
-            <div className="flex justify-between items-baseline">
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-300"
-              >
-                Senha
-              </label>
-              <a href="#" className="text-sm text-[#4DA6FF] hover:underline">
-                Esqueceu a senha?
-              </a>
-            </div>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-style" // Usando a classe global
-              placeholder="••••••••"
-            />
-          </div>
-          <div>
-            <button
-              type="submit"
-              disabled={loading} // Desabilita o botão durante o carregamento
-              className="w-full bg-[#8B1E3F] hover:bg-red-800 transition-colors text-white font-bold py-3 px-6 rounded-lg text-lg disabled:bg-gray-500 disabled:cursor-not-allowed"
-            >
-              {loading ? "Entrando..." : "Entrar"}
-            </button>
-          </div>
+            <label>
+              <Flex justify="between" align="baseline">
+                <Text as="div" size="2" mb="1" weight="bold">
+                  Senha
+                </Text>
+                <RadixLink asChild size="2">
+                  <Link href="#">Esqueceu a senha?</Link>
+                </RadixLink>
+              </Flex>
+              <TextField.Root
+                size="3"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </label>
+            <Button size="3" type="submit" loading={loading}>
+              Entrar
+            </Button>
+          </Flex>
         </form>
 
-        <p className="mt-8 text-center text-sm text-gray-400">
-          Não tem uma conta?{" "}
-          <Link
-            href="/cadastro"
-            className="font-semibold text-[#4DA6FF] hover:underline"
-          >
-            Cadastre-se
-          </Link>
-        </p>
-      </div>
-    </div>
+        <Box align="center" mt="6">
+          <Text size="2">
+            Não tem uma conta?{" "}
+            <RadixLink asChild>
+              <Link href="/cadastro">Cadastre-se</Link>
+            </RadixLink>
+          </Text>
+        </Box>
+      </Card>
+    </Flex>
   );
 }

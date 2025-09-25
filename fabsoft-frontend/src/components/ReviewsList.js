@@ -1,10 +1,30 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import api from "@/services/api";
-import { Heart, MessageSquare, Edit, Trash2, Share2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import RatingModal from "./RatingModal";
+import {
+  Flex,
+  Box,
+  Text,
+  Button,
+  Avatar,
+  Card,
+  Heading,
+  Link as RadixLink,
+  TextField,
+  IconButton,
+  Spinner,
+} from "@radix-ui/themes";
+import {
+  HeartIcon,
+  HeartFilledIcon,
+  ChatBubbleIcon,
+  Pencil2Icon,
+  TrashIcon,
+  Share2Icon,
+} from "@radix-ui/react-icons";
 
 const formatDate = (dateString) =>
   new Date(dateString).toLocaleDateString("pt-BR", {
@@ -19,7 +39,7 @@ const CommentSection = ({ reviewId }) => {
   const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const fetchComments = async () => {
+  const fetchComments = useCallback(async () => {
     try {
       const response = await api.get(`/avaliacoes/${reviewId}/comentarios`);
       setComments(response.data);
@@ -28,11 +48,11 @@ const CommentSection = ({ reviewId }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [reviewId]);
 
   useEffect(() => {
     fetchComments();
-  }, [reviewId]);
+  }, [fetchComments]);
 
   const handlePostComment = async (e) => {
     e.preventDefault();
@@ -51,75 +71,71 @@ const CommentSection = ({ reviewId }) => {
   };
 
   return (
-    <div className="mt-4 pl-14 border-t border-gray-800 pt-4 space-y-4">
-      <form onSubmit={handlePostComment} className="flex items-center gap-2">
-        <Image
-          src={
-            user?.foto_perfil
-              ? `${process.env.NEXT_PUBLIC_API_URL}${user.foto_perfil}`
-              : "/placeholder.png"
-          }
-          alt="Sua foto de perfil"
-          width={32}
-          height={32}
-          className="w-8 h-8 rounded-full object-cover"
-        />
-        <input
-          type="text"
-          placeholder="Escreva um comentário..."
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          className="input-style w-full text-sm !mt-0"
-        />
-        <button
-          type="submit"
-          className="bg-[#4DA6FF] hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm"
-        >
-          Enviar
-        </button>
+    <Box mt="4" pl="8" pt="4" style={{ borderTop: "1px solid var(--gray-a5)" }}>
+      <form onSubmit={handlePostComment}>
+        <Flex gap="3" align="center">
+          <Avatar
+            src={
+              user?.foto_perfil
+                ? `${process.env.NEXT_PUBLIC_API_URL}${user.foto_perfil}`
+                : "/placeholder.png"
+            }
+            fallback={user?.username ? user.username[0] : "U"}
+            size="2"
+            radius="full"
+          />
+          <TextField.Root
+            placeholder="Escreva um comentário..."
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            style={{ flexGrow: 1 }}
+          />
+          <Button type="submit">Enviar</Button>
+        </Flex>
       </form>
 
-      {loading ? (
-        <p className="text-sm text-gray-400">A carregar comentários...</p>
-      ) : (
-        comments.map((comment) => (
-          <div
-            key={comment.id}
-            className="flex items-start gap-3 comment-enter-active"
-          >
-            <Link href={`/perfil/${comment.usuario.username}`}>
-              <Image
+      <Flex direction="column" gap="3" mt="4">
+        {loading ? (
+          <Flex align="center" justify="center" p="4">
+            <Spinner />
+            <Text ml="2">Carregando comentários...</Text>
+          </Flex>
+        ) : (
+          comments.map((comment) => (
+            <Flex key={comment.id} gap="3">
+              <Avatar
+                asChild
                 src={
                   comment.usuario.foto_perfil
                     ? `${process.env.NEXT_PUBLIC_API_URL}${comment.usuario.foto_perfil}`
                     : "/placeholder.png"
                 }
-                alt={`Foto de ${comment.usuario.username}`}
-                width={32}
-                height={32}
-                className="w-8 h-8 rounded-full object-cover"
-              />
-            </Link>
-            <div className="bg-gray-800/50 rounded-lg px-3 py-2 text-sm w-full">
-              <div className="flex items-baseline gap-2">
-                <Link
-                  href={`/perfil/${comment.usuario.username}`}
-                  className="font-bold text-white hover:underline"
-                >
-                  {comment.usuario.username}
-                </Link>
-                <span className="text-xs text-gray-500">
-                  {new Date(comment.data_comentario).toLocaleDateString(
-                    "pt-BR"
-                  )}
-                </span>
-              </div>
-              <p className="text-gray-300">{comment.comentario}</p>
-            </div>
-          </div>
-        ))
-      )}
-    </div>
+                fallback={comment.usuario.username[0]}
+                size="2"
+                radius="full"
+              >
+                <Link href={`/perfil/${comment.usuario.username}`} />
+              </Avatar>
+              <Box style={{ backgroundColor: "var(--gray-a2)", borderRadius: "var(--radius-3)", padding: "var(--space-2) var(--space-3)", width: "100%"}}>
+                <Flex align="baseline" gap="2">
+                  <RadixLink asChild weight="bold" size="2">
+                    <Link href={`/perfil/${comment.usuario.username}`}>
+                      {comment.usuario.username}
+                    </Link>
+                  </RadixLink>
+                  <Text size="1" color="gray">
+                    {new Date(comment.data_comentario).toLocaleDateString("pt-BR")}
+                  </Text>
+                </Flex>
+                <Text as="p" size="2">
+                  {comment.comentario}
+                </Text>
+              </Box>
+            </Flex>
+          ))
+        )}
+      </Flex>
+    </Box>
   );
 };
 
@@ -179,92 +195,96 @@ const ReviewItem = ({ review, onDataChange }) => {
 
   return (
     <>
-      <div id={`review-${review.id}`} className="bg-black/20 p-4 rounded-lg">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <Link href={`/perfil/${review.usuario.username}`}>
-              <Image
-                src={
-                  review.usuario.foto_perfil
-                    ? `${process.env.NEXT_PUBLIC_API_URL}${review.usuario.foto_perfil}`
-                    : "/placeholder.png"
-                }
-                alt={`Foto de ${review.usuario.username}`}
-                width={48}
-                height={48}
-                className="w-12 h-12 rounded-full object-cover bg-gray-700"
-              />
-            </Link>
-            <div>
-              <Link
-                href={`/perfil/${review.usuario.username}`}
-                className="font-bold text-white hover:underline"
-              >
-                {review.usuario.username}
-              </Link>
-              <p className="text-xs text-gray-400">
+      <Card id={`review-${review.id}`}>
+        <Flex justify="between" gap="4">
+          <Flex gap="3">
+            <Avatar
+              asChild
+              src={
+                review.usuario.foto_perfil
+                  ? `${process.env.NEXT_PUBLIC_API_URL}${review.usuario.foto_perfil}`
+                  : "/placeholder.png"
+              }
+              fallback={review.usuario.username[0]}
+              size="3"
+              radius="full"
+            >
+              <Link href={`/perfil/${review.usuario.username}`} />
+            </Avatar>
+            <Box>
+              <RadixLink asChild weight="bold">
+                <Link href={`/perfil/${review.usuario.username}`}>
+                  {review.usuario.username}
+                </Link>
+              </RadixLink>
+              <Text as="p" size="1" color="gray">
                 {formatDate(review.data_avaliacao)}
-              </p>
-            </div>
-          </div>
-          <div className="flex-shrink-0 h-12 w-12 bg-blue-600/80 rounded-full flex items-center justify-center border-2 border-blue-500">
-            <span className="text-xl font-bold">
+              </Text>
+            </Box>
+          </Flex>
+          <Flex
+            align="center"
+            justify="center"
+            style={{
+              width: "48px",
+              height: "48px",
+              borderRadius: "50%",
+              backgroundColor: "var(--accent-a3)",
+              border: "2px solid var(--accent-a6)",
+            }}
+          >
+            <Heading as="h3" size="5">
               {review.nota_geral.toFixed(1)}
-            </span>
-          </div>
-        </div>
+            </Heading>
+          </Flex>
+        </Flex>
 
         {review.resenha && (
-          <p className="text-gray-300 leading-relaxed mt-4">{review.resenha}</p>
+          <Text as="p" color="gray" mt="3">
+            {review.resenha}
+          </Text>
         )}
 
-        <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-800/50">
-          <button
-            onClick={handleLikeToggle}
-            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-          >
-            <Heart
-              size={18}
-              className={isLiked ? "text-red-500" : ""}
-              fill={isLiked ? "currentColor" : "none"}
-            />
-            <span>{likeCount}</span>
-          </button>
-          <button
+        <Flex align="center" gap="4" mt="3" pt="3" style={{ borderTop: "1px solid var(--gray-a5)" }}>
+          <Button variant="ghost" color="gray" onClick={handleLikeToggle}>
+            {isLiked ? <HeartFilledIcon color="var(--red-9)" /> : <HeartIcon />}
+            {likeCount}
+          </Button>
+          <Button
+            variant="ghost"
+            color="gray"
             onClick={() => setShowComments(!showComments)}
-            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
           >
-            <MessageSquare size={18} />
-            <span>Comentar</span>
-          </button>
-          <div className="flex items-center gap-2 ml-auto">
-            <button
-              onClick={handleShare}
-              className="text-gray-400 hover:text-white transition-colors"
-            >
-              <Share2 size={18} />
-            </button>
+            <ChatBubbleIcon />
+            Comentar
+          </Button>
+          <Flex gap="2" ml="auto">
+            <IconButton variant="ghost" color="gray" onClick={handleShare}>
+              <Share2Icon />
+            </IconButton>
             {isOwner && (
               <>
-                <button
+                <IconButton
+                  variant="ghost"
+                  color="gray"
                   onClick={() => setIsEditing(true)}
-                  className="text-gray-400 hover:text-white transition-colors"
                 >
-                  <Edit size={18} />
-                </button>
-                <button
+                  <Pencil2Icon />
+                </IconButton>
+                <IconButton
+                  variant="ghost"
+                  color="red"
                   onClick={handleDelete}
-                  className="text-red-500 hover:text-red-400 transition-colors"
                 >
-                  <Trash2 size={18} />
-                </button>
+                  <TrashIcon />
+                </IconButton>
               </>
             )}
-          </div>
-        </div>
+          </Flex>
+        </Flex>
 
         {showComments && <CommentSection reviewId={review.id} />}
-      </div>
+      </Card>
       {isEditing && (
         <RatingModal
           game={review.jogo}
@@ -283,14 +303,14 @@ const ReviewItem = ({ review, onDataChange }) => {
 export default function ReviewsList({ reviews, onDataChange }) {
   if (!reviews || reviews.length === 0) {
     return (
-      <p className="text-gray-400 text-center py-8">
-        Nenhuma avaliação para este jogo ainda.
-      </p>
+      <Flex align="center" justify="center" p="8">
+        <Text color="gray">Nenhuma avaliação para este jogo ainda.</Text>
+      </Flex>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <Flex direction="column" gap="4">
       {reviews.map((review) => (
         <ReviewItem
           key={review.id}
@@ -298,6 +318,6 @@ export default function ReviewsList({ reviews, onDataChange }) {
           onDataChange={onDataChange}
         />
       ))}
-    </div>
+    </Flex>
   );
 }
