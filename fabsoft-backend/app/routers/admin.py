@@ -4,7 +4,7 @@ from ..dependencies import get_db
 from ..services import nba_importer
 from ..routers.usuarios import get_current_user
 from .. import schemas
-from ..schemas import SyncAwardsResponse, SyncAllAwardsResponse, SyncChampionshipsResponse, SyncAllChampionshipsResponse
+from ..schemas import SyncAwardsResponse, SyncAllAwardsResponse, SyncChampionshipsResponse, SyncAllChampionshipsResponse, SyncCareerStatsResponse, SyncAllCareerStatsResponse
 
 router = APIRouter(
     prefix="/admin",
@@ -107,4 +107,31 @@ def sync_all_championships_endpoint(
     no banco de dados.
     """
     resultado = nba_importer.sync_all_teams_championships(db)
+    return resultado
+
+@router.post("/sync-career-stats/{jogador_id}", response_model=SyncCareerStatsResponse)
+def sync_career_stats_endpoint(
+    jogador_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.Usuario = Depends(get_current_user)
+):
+    """
+    Endpoint para validar e testar o acesso às estatísticas de carreira 
+    de um jogador específico usando o ID INTERNO do banco de dados.
+    """
+    resultado = nba_importer.sync_player_career_stats(db, jogador_id=jogador_id)
+    return resultado
+
+@router.post("/sync-all-career-stats", response_model=SyncAllCareerStatsResponse)
+def sync_all_career_stats_endpoint(
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: schemas.Usuario = Depends(get_current_user)
+):
+    """
+    Endpoint para validar o acesso às estatísticas de carreira para múltiplos jogadores.
+    ATENÇÃO: Limitado por padrão a 50 jogadores para evitar sobrecarga da API da NBA.
+    Use o parâmetro 'limit' para ajustar o número de jogadores testados.
+    """
+    resultado = nba_importer.sync_all_players_career_stats(db, limit=limit)
     return resultado

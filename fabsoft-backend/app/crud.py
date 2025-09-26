@@ -381,6 +381,63 @@ def add_conquista_jogador(db: Session, jogador_id: int, nome_conquista: str, tem
         return nova_conquista
     return db_conquista
 
+def get_jogador_career_stats(db: Session, jogador_slug: str) -> List[schemas.JogadorCareerStats]:
+    """Busca as estatísticas de carreira de um jogador da NBA API."""
+    from nba_api.stats.endpoints import playercareerstats
+    import time
+    
+    # Primeiro, busca o jogador no banco local para obter o API ID
+    db_jogador = get_jogador_by_slug(db, jogador_slug=jogador_slug)
+    if not db_jogador or not db_jogador.api_id:
+        return []
+    
+    try:
+        # Pausa para evitar rate limiting
+        time.sleep(1.1)
+        
+        # Busca as estatísticas de carreira da NBA API
+        career_stats = playercareerstats.PlayerCareerStats(
+            player_id=db_jogador.api_id,
+            timeout=60
+        )
+        
+        # Pega o DataFrame com as estatísticas por temporada
+        season_totals_df = career_stats.get_data_frames()[0]
+        
+        career_stats_list = []
+        for index, row in season_totals_df.iterrows():
+            career_stat = schemas.JogadorCareerStats(
+                temporada=row['SEASON_ID'],
+                team_abbreviation=row['TEAM_ABBREVIATION'],
+                jogos_disputados=int(row['GP'] or 0),
+                minutos_por_jogo=float(row['MIN'] or 0) / max(int(row['GP'] or 1), 1),
+                field_goals_made=float(row['FGM'] or 0) / max(int(row['GP'] or 1), 1),
+                field_goals_attempted=float(row['FGA'] or 0) / max(int(row['GP'] or 1), 1),
+                field_goal_percentage=float(row['FG_PCT'] or 0),
+                three_pointers_made=float(row['FG3M'] or 0) / max(int(row['GP'] or 1), 1),
+                three_pointers_attempted=float(row['FG3A'] or 0) / max(int(row['GP'] or 1), 1),
+                three_point_percentage=float(row['FG3_PCT'] or 0),
+                free_throws_made=float(row['FTM'] or 0) / max(int(row['GP'] or 1), 1),
+                free_throws_attempted=float(row['FTA'] or 0) / max(int(row['GP'] or 1), 1),
+                free_throw_percentage=float(row['FT_PCT'] or 0),
+                rebounds_offensive=float(row['OREB'] or 0) / max(int(row['GP'] or 1), 1),
+                rebounds_defensive=float(row['DREB'] or 0) / max(int(row['GP'] or 1), 1),
+                rebounds_total=float(row['REB'] or 0) / max(int(row['GP'] or 1), 1),
+                assists=float(row['AST'] or 0) / max(int(row['GP'] or 1), 1),
+                steals=float(row['STL'] or 0) / max(int(row['GP'] or 1), 1),
+                blocks=float(row['BLK'] or 0) / max(int(row['GP'] or 1), 1),
+                turnovers=float(row['TOV'] or 0) / max(int(row['GP'] or 1), 1),
+                personal_fouls=float(row['PF'] or 0) / max(int(row['GP'] or 1), 1),
+                points=float(row['PTS'] or 0) / max(int(row['GP'] or 1), 1),
+            )
+            career_stats_list.append(career_stat)
+        
+        return career_stats_list
+    
+    except Exception as e:
+        print(f"Erro ao buscar estatísticas de carreira para jogador {jogador_slug}: {e}")
+        return []
+
 # --- Funções CRUD para Jogo ---
 
 def get_jogo_by_api_id(db: Session, api_id: int):
@@ -1411,3 +1468,194 @@ def get_schedule_for_time(db: Session, time_id: int):
     ).order_by(models.Jogo.data_jogo.asc()).limit(2).all()
     
     return schemas.Schedule(recent=recent_games, upcoming=upcoming_games)
+
+# --- Funções para Feed Personalizado ---
+
+def get_highlighted_games(db: Session, tipo_destaque: str = "esta_semana", limit: int = 4):
+    """
+    Busca jogos em destaque com base no tipo solicitado.
+    """
+    now = datetime.now()
+    
+    if tipo_destaque == "esta_semana":
+        start_date = now - timedelta(days=7)
+    elif tipo_destaque == "ultimos_3_dias":
+        start_date = now - timedelta(days=3)
+    elif tipo_destaque == "ontem":
+        start_date = now - timedelta(days=1)
+        end_date = now
+    elif tipo_destaque == "tournament":
+        # Para jogos de playoff/tournament, podemos filtrar por temporada específica
+        start_date = now - timedelta(days=30)
+    else:
+        start_date = now - timedelta(days=7)
+    
+    query = db.query(
+        models.Jogo,
+        func.count(models.Avaliacao_Jogo.id).label('total_avaliacoes'),
+        func.avg(models.Avaliacao_Jogo.nota_geral).label('media_geral')
+    ).join(models.Avaliacao_Jogo, models.Jogo.id == models.Avaliacao_Jogo.jogo_id)\
+     .filter(models.Jogo.data_jogo >= start_date)
+    
+    if tipo_destaque == "ontem":
+        query = query.filter(models.Jogo.data_jogo < end_date)
+    
+    results = query.group_by(models.Jogo.id)\
+                  .order_by(func.count(models.Avaliacao_Jogo.id).desc())\
+                  .limit(limit)\
+                  .all()
+    
+    jogos_destaque = []
+    for jogo, total_avaliacoes, media_geral in results:
+        # Criar um dicionário que será convertido pelo Pydantic
+        jogo_destaque = schemas.JogoDestaque(
+            id=jogo.id,
+            slug=jogo.slug,
+            data_jogo=jogo.data_jogo,
+            temporada=jogo.temporada,
+            placar_casa=jogo.placar_casa,
+            placar_visitante=jogo.placar_visitante,
+            time_casa=jogo.time_casa,
+            time_visitante=jogo.time_visitante,
+            total_avaliacoes=total_avaliacoes or 0,
+            media_geral=float(media_geral) if media_geral else 0.0,
+            tipo_destaque=tipo_destaque
+        )
+        jogos_destaque.append(jogo_destaque)
+    
+    return jogos_destaque
+
+def get_personalized_feed(db: Session, usuario_id: int, limit: int = 10):
+    """
+    Busca avaliações personalizadas baseadas nos times que o usuário costuma avaliar.
+    """
+    # Buscar times que o usuário mais avalia
+    times_favoritos = db.query(
+        models.Jogo.time_casa_id.label('time_id'),
+        func.count().label('count')
+    ).join(models.Avaliacao_Jogo, models.Jogo.id == models.Avaliacao_Jogo.jogo_id)\
+     .filter(models.Avaliacao_Jogo.usuario_id == usuario_id)\
+     .group_by(models.Jogo.time_casa_id)\
+     .union(
+         db.query(
+             models.Jogo.time_visitante_id.label('time_id'),
+             func.count().label('count')
+         ).join(models.Avaliacao_Jogo, models.Jogo.id == models.Avaliacao_Jogo.jogo_id)\
+          .filter(models.Avaliacao_Jogo.usuario_id == usuario_id)\
+          .group_by(models.Jogo.time_visitante_id)
+     ).subquery()
+    
+    # Buscar os top 5 times mais avaliados pelo usuário
+    top_times = db.query(times_favoritos.c.time_id)\
+                  .order_by(times_favoritos.c.count.desc())\
+                  .limit(5)\
+                  .all()
+    
+    if not top_times:
+        # Se o usuário nunca avaliou nada, retorna avaliações recentes
+        avaliacoes = db.query(models.Avaliacao_Jogo)\
+                       .join(models.Usuario, models.Avaliacao_Jogo.usuario_id == models.Usuario.id)\
+                       .join(models.Jogo, models.Avaliacao_Jogo.jogo_id == models.Jogo.id)\
+                       .filter(models.Avaliacao_Jogo.usuario_id != usuario_id)\
+                       .order_by(models.Avaliacao_Jogo.data_avaliacao.desc())\
+                       .limit(limit)\
+                       .all()
+    else:
+        time_ids = [t.time_id for t in top_times]
+        
+        # Buscar avaliações recentes de outros usuários para esses times
+        avaliacoes = db.query(models.Avaliacao_Jogo)\
+                       .join(models.Jogo, models.Avaliacao_Jogo.jogo_id == models.Jogo.id)\
+                       .join(models.Usuario, models.Avaliacao_Jogo.usuario_id == models.Usuario.id)\
+                       .filter(
+                           models.Avaliacao_Jogo.usuario_id != usuario_id,
+                           (models.Jogo.time_casa_id.in_(time_ids)) | 
+                           (models.Jogo.time_visitante_id.in_(time_ids))
+                       )\
+                       .order_by(models.Avaliacao_Jogo.data_avaliacao.desc())\
+                       .limit(limit)\
+                       .all()
+    
+    avaliacoes_feed = []
+    for avaliacao in avaliacoes:
+        # Contar curtidas e comentários
+        total_curtidas = db.query(models.Curtida_Avaliacao)\
+                          .filter(models.Curtida_Avaliacao.avaliacao_id == avaliacao.id)\
+                          .count()
+        
+        total_comentarios = db.query(models.Comentario_Avaliacao)\
+                           .filter(models.Comentario_Avaliacao.avaliacao_id == avaliacao.id)\
+                           .count()
+        
+        # Verificar se o usuário atual já curtiu
+        ja_curtiu = db.query(models.Curtida_Avaliacao)\
+                     .filter(
+                         models.Curtida_Avaliacao.avaliacao_id == avaliacao.id,
+                         models.Curtida_Avaliacao.usuario_id == usuario_id
+                     ).first() is not None
+        
+        avaliacao_feed_obj = schemas.AvaliacaoFeed(
+            id=avaliacao.id,
+            usuario=avaliacao.usuario,
+            jogo=avaliacao.jogo,
+            nota_geral=avaliacao.nota_geral,
+            resenha=avaliacao.resenha,
+            data_avaliacao=avaliacao.data_avaliacao,
+            total_curtidas=total_curtidas,
+            total_comentarios=total_comentarios,
+            ja_curtiu=ja_curtiu
+        )
+        avaliacoes_feed.append(avaliacao_feed_obj)
+    
+    return avaliacoes_feed
+
+def get_following_feed(db: Session, usuario_id: int, limit: int = 10):
+    """
+    Busca avaliações das pessoas que o usuário segue.
+    """
+    # Buscar usuários seguidos
+    usuarios_seguidos = db.query(models.Seguidor.seguido_id)\
+                         .filter(models.Seguidor.seguidor_id == usuario_id)\
+                         .subquery()
+    
+    # Buscar avaliações desses usuários
+    avaliacoes = db.query(models.Avaliacao_Jogo)\
+                   .join(models.Usuario, models.Avaliacao_Jogo.usuario_id == models.Usuario.id)\
+                   .join(models.Jogo, models.Avaliacao_Jogo.jogo_id == models.Jogo.id)\
+                   .filter(models.Avaliacao_Jogo.usuario_id.in_(usuarios_seguidos))\
+                   .order_by(models.Avaliacao_Jogo.data_avaliacao.desc())\
+                   .limit(limit)\
+                   .all()
+    
+    avaliacoes_feed = []
+    for avaliacao in avaliacoes:
+        # Contar curtidas e comentários
+        total_curtidas = db.query(models.Curtida_Avaliacao)\
+                          .filter(models.Curtida_Avaliacao.avaliacao_id == avaliacao.id)\
+                          .count()
+        
+        total_comentarios = db.query(models.Comentario_Avaliacao)\
+                           .filter(models.Comentario_Avaliacao.avaliacao_id == avaliacao.id)\
+                           .count()
+        
+        # Verificar se o usuário atual já curtiu
+        ja_curtiu = db.query(models.Curtida_Avaliacao)\
+                     .filter(
+                         models.Curtida_Avaliacao.avaliacao_id == avaliacao.id,
+                         models.Curtida_Avaliacao.usuario_id == usuario_id
+                     ).first() is not None
+        
+        avaliacao_feed_obj = schemas.AvaliacaoFeed(
+            id=avaliacao.id,
+            usuario=avaliacao.usuario,
+            jogo=avaliacao.jogo,
+            nota_geral=avaliacao.nota_geral,
+            resenha=avaliacao.resenha,
+            data_avaliacao=avaliacao.data_avaliacao,
+            total_curtidas=total_curtidas,
+            total_comentarios=total_comentarios,
+            ja_curtiu=ja_curtiu
+        )
+        avaliacoes_feed.append(avaliacao_feed_obj)
+    
+    return avaliacoes_feed

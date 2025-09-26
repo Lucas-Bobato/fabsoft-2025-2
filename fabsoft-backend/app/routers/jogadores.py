@@ -55,6 +55,30 @@ def read_jogador_gamelog(
     return gamelog
 
 @router.get(
+    "/{jogador_slug}/career-stats",
+    response_model=List[schemas.JogadorCareerStats],
+    summary="Obter estatísticas de carreira de um jogador",
+    description="Retorna as estatísticas detalhadas de carreira de um jogador por temporada, obtidas diretamente da NBA API."
+)
+def read_jogador_career_stats(
+    jogador_slug: str = Path(..., description="O slug do jogador a ser consultado."),
+    db: Session = Depends(get_db)
+):
+    """
+    Este endpoint busca as estatísticas completas de carreira de um jogador
+    diretamente da NBA API, incluindo dados detalhados por temporada.
+    """
+    career_stats = crud.get_jogador_career_stats(db, jogador_slug=jogador_slug)
+    if not career_stats:
+        # Verifica se o jogador existe
+        jogador = crud.get_jogador_by_slug(db, jogador_slug=jogador_slug)
+        if not jogador:
+            raise HTTPException(status_code=404, detail="Jogador não encontrado")
+        else:
+            raise HTTPException(status_code=404, detail="Estatísticas de carreira não encontradas para este jogador")
+    return career_stats
+
+@router.get(
     "/comparar",
     response_model=schemas.ComparacaoJogadoresResponse,
     summary="Comparar dois jogadores",

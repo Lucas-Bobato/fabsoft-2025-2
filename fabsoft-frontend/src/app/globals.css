@@ -106,3 +106,39 @@ body {
   background-color: rgba(77, 166, 255, 0.2) !important;
   border: 1px solid #4da6ff;
 }
+
+/* Estilos para os componentes da home page */
+.featured-game-card {
+  transition: all 0.3s ease;
+}
+
+.featured-game-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.review-card {
+  transition: all 0.2s ease;
+}
+
+.review-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.filter-button {
+  transition: all 0.2s ease;
+}
+
+.filter-button:hover {
+  transform: translateY(-1px);
+}
+
+.upcoming-game-card {
+  transition: all 0.2s ease;
+}
+
+.upcoming-game-card:hover {
+  background-color: var(--gray-a3);
+  transform: translateX(3px);
+}
