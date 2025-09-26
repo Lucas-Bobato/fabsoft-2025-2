@@ -149,6 +149,18 @@ def read_trending_games(db: Session = Depends(get_db)):
     """
     return crud.get_trending_games(db)
 
+@router.get("/destaque", response_model=List[schemas.JogoDestaque])
+def read_highlighted_games(
+    tipo: str = "esta_semana",
+    limit: int = 4,
+    db: Session = Depends(get_db)
+):
+    """
+    Retorna jogos em destaque baseados no tipo solicitado.
+    Tipos disponíveis: esta_semana, ultimos_3_dias, ontem, tournament
+    """
+    return crud.get_highlighted_games(db, tipo_destaque=tipo, limit=limit)
+
 @router.post("/", response_model=schemas.Jogo)
 def create_jogo(jogo: schemas.JogoCreate, db: Session = Depends(get_db)):
     return crud.create_jogo(db=db, jogo=jogo)

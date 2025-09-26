@@ -465,3 +465,57 @@ def sync_all_teams_championships(db: Session):
     print(f"\nSincronização de todos os títulos concluída. Total de títulos sincronizados nesta execução: {total_titulos_adicionados}")
     return {"total_titulos_sincronizados": total_titulos_adicionados}
 
+def sync_player_career_stats(db: Session, jogador_id: int):
+    """
+    Busca e armazena as estatísticas de carreira de um jogador específico.
+    Para fins de demonstração, esta função apenas valida se o jogador existe
+    e se conseguimos acessar suas estatísticas da NBA API.
+    """
+    db_jogador = db.query(models.Jogador).filter(models.Jogador.id == jogador_id).first()
+    if not db_jogador or not db_jogador.api_id:
+        print(f"Jogador com ID local {jogador_id} não encontrado ou sem API ID.")
+        return {"stats_sincronizadas": 0}
+
+    print(f"Validando acesso às estatísticas de carreira para {db_jogador.nome} (API ID: {db_jogador.api_id})...")
+    try:
+        # Usa a função que já criamos no CRUD
+        career_stats = crud.get_jogador_career_stats(db, jogador_slug=db_jogador.slug)
+        
+        if career_stats:
+            stats_count = len(career_stats)
+            print(f" -> {stats_count} temporadas de estatísticas encontradas para {db_jogador.nome}.")
+            print(f" -> Primeira temporada: {career_stats[0].temporada} - {career_stats[0].points:.1f} PPG")
+            return {"stats_sincronizadas": stats_count}
+        else:
+            print(f" -> Nenhuma estatística de carreira encontrada para {db_jogador.nome}.")
+            return {"stats_sincronizadas": 0}
+
+    except Exception as e:
+        print(f"Erro ao buscar estatísticas de carreira para o jogador ID {db_jogador.api_id}: {e}")
+        return {"stats_sincronizadas": 0}
+
+def sync_all_players_career_stats(db: Session, limit: int = 50):
+    """
+    Testa o acesso às estatísticas de carreira para vários jogadores.
+    Limitado a um número específico de jogadores para evitar sobrecarga da API.
+    """
+    jogadores = crud.get_jogadores(db, limit=limit)
+    total_stats_validadas = 0
+    
+    print(f"Iniciando validação de estatísticas de carreira para {len(jogadores)} jogadores...")
+
+    for i, jogador in enumerate(jogadores):
+        print(f"({i+1}/{len(jogadores)}) Validando estatísticas para: {jogador.nome}")
+        if jogador.api_id:
+            resultado = sync_player_career_stats(db, jogador_id=jogador.id)
+            total_stats_validadas += resultado.get("stats_sincronizadas", 0)
+            
+            # Pausa entre jogadores para não sobrecarregar a API
+            if i < len(jogadores) - 1:  # Não pausa no último
+                time.sleep(1.5)
+        else:
+            print(f" -> Jogador {jogador.nome} sem API ID. A ignorar.")
+
+    print(f"\nValidação concluída. Total de temporadas de estatísticas validadas: {total_stats_validadas}")
+    return {"total_stats_validadas": total_stats_validadas}
+

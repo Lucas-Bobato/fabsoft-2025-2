@@ -92,6 +92,31 @@ class JogadorStatsTemporada(BaseModel):
     rebotes_por_jogo: float = Field(..., description="Média de ressaltos por jogo (RPG).", json_schema_extra=8.2)
     assistencias_por_jogo: float = Field(..., description="Média de assistências por jogo (APG).", json_schema_extra=7.3)
     model_config = {"from_attributes": True}
+
+class JogadorCareerStats(BaseModel):
+    temporada: str = Field(..., description="Temporada das estatísticas", json_schema_extra="2023-24")
+    team_abbreviation: str = Field(..., description="Sigla do time", json_schema_extra="LAL")
+    jogos_disputados: int = Field(..., description="Jogos disputados", json_schema_extra=82)
+    minutos_por_jogo: float = Field(..., description="Minutos por jogo", json_schema_extra=35.2)
+    field_goals_made: float = Field(..., description="Cestas de campo convertidas por jogo", json_schema_extra=9.8)
+    field_goals_attempted: float = Field(..., description="Tentativas de cestas de campo por jogo", json_schema_extra=19.6)
+    field_goal_percentage: float = Field(..., description="Percentual de cestas de campo", json_schema_extra=0.502)
+    three_pointers_made: float = Field(..., description="Cestas de 3 pontos convertidas por jogo", json_schema_extra=2.1)
+    three_pointers_attempted: float = Field(..., description="Tentativas de cestas de 3 pontos por jogo", json_schema_extra=5.8)
+    three_point_percentage: float = Field(..., description="Percentual de cestas de 3 pontos", json_schema_extra=0.362)
+    free_throws_made: float = Field(..., description="Lances livres convertidos por jogo", json_schema_extra=4.1)
+    free_throws_attempted: float = Field(..., description="Tentativas de lances livres por jogo", json_schema_extra=5.4)
+    free_throw_percentage: float = Field(..., description="Percentual de lances livres", json_schema_extra=0.759)
+    rebounds_offensive: float = Field(..., description="Rebotes ofensivos por jogo", json_schema_extra=1.2)
+    rebounds_defensive: float = Field(..., description="Rebotes defensivos por jogo", json_schema_extra=7.1)
+    rebounds_total: float = Field(..., description="Total de rebotes por jogo", json_schema_extra=8.3)
+    assists: float = Field(..., description="Assistências por jogo", json_schema_extra=7.2)
+    steals: float = Field(..., description="Roubos de bola por jogo", json_schema_extra=1.3)
+    blocks: float = Field(..., description="Tocos por jogo", json_schema_extra=0.6)
+    turnovers: float = Field(..., description="Perdas de bola por jogo", json_schema_extra=3.7)
+    personal_fouls: float = Field(..., description="Faltas pessoais por jogo", json_schema_extra=2.1)
+    points: float = Field(..., description="Pontos por jogo", json_schema_extra=25.9)
+    model_config = {"from_attributes": True}
 class JogadorDetails(Jogador):
     data_nascimento: Optional[date] = Field(None, json_schema_extra="1995-02-19")
     ano_draft: Optional[int] = Field(None, description="Ano em que o jogador foi draftado.", json_schema_extra=2014)
@@ -147,6 +172,12 @@ class SyncAwardsResponse(BaseModel):
     
 class SyncAllAwardsResponse(BaseModel):
     total_premios_sincronizados: int
+
+class SyncCareerStatsResponse(BaseModel):
+    stats_sincronizadas: int
+    
+class SyncAllCareerStatsResponse(BaseModel):
+    total_stats_validadas: int
 
 # --- Schemas para Usuario ---
 class UsuarioBase(BaseModel):
@@ -453,3 +484,30 @@ class UserStats(BaseModel):
 class Schedule(BaseModel):
     recent: List[Jogo]
     upcoming: List[Jogo]
+
+# --- Schemas para Feed Personalizado ---
+class AvaliacaoFeed(BaseModel):
+    id: int
+    usuario: UsuarioSimple
+    jogo: Jogo
+    nota_geral: float
+    resenha: Optional[str] = None
+    data_avaliacao: datetime
+    total_curtidas: int = 0
+    total_comentarios: int = 0
+    ja_curtiu: bool = False
+    model_config = {"from_attributes": True}
+
+class JogoDestaque(BaseModel):
+    id: int
+    slug: str
+    data_jogo: datetime
+    temporada: str
+    placar_casa: int
+    placar_visitante: int
+    time_casa: TimeSimple
+    time_visitante: TimeSimple
+    total_avaliacoes: int = 0
+    media_geral: float = 0.0
+    tipo_destaque: str  # "esta_semana", "ultimos_3_dias", "ontem", "tournament"
+    model_config = {"from_attributes": True}

@@ -104,9 +104,11 @@ const PlayerProfilePage = () => {
   const { slug } = params;
   const [player, setPlayer] = useState(null);
   const [gameLog, setGameLog] = useState([]);
+  const [careerStats, setCareerStats] = useState([]);
   const [schedule, setSchedule] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
+  const [loadingCareerStats, setLoadingCareerStats] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -141,6 +143,20 @@ const PlayerProfilePage = () => {
     };
     fetchData();
   }, [slug]);
+
+  const fetchCareerStats = async () => {
+    if (!player || careerStats.length > 0) return;
+    
+    try {
+      setLoadingCareerStats(true);
+      const response = await api.get(`/jogadores/${player.slug}/career-stats`);
+      setCareerStats(response.data);
+    } catch (err) {
+      console.error("Erro ao buscar estatísticas de carreira:", err);
+    } finally {
+      setLoadingCareerStats(false);
+    }
+  };
 
   if (loading)
     return (
@@ -202,6 +218,9 @@ const PlayerProfilePage = () => {
         <Tabs.List size="2" mt="4">
           <Tabs.Trigger value="overview">Visão Geral</Tabs.Trigger>
           <Tabs.Trigger value="stats">Estatísticas</Tabs.Trigger>
+          <Tabs.Trigger value="career-stats" onClick={fetchCareerStats}>
+            Carreira NBA
+          </Tabs.Trigger>
           <Tabs.Trigger value="games">Log de Jogos</Tabs.Trigger>
         </Tabs.List>
 
@@ -384,6 +403,105 @@ const PlayerProfilePage = () => {
                 ))}
               </Table.Body>
             </Table.Root>
+          </Card>
+        </Tabs.Content>
+
+        <Tabs.Content value="career-stats" mt="6">
+          <Card size="3">
+            <Box p="4">
+              <Heading size="5" mb="4">Estatísticas de Carreira NBA</Heading>
+              {loadingCareerStats ? (
+                <Flex justify="center" align="center" gap="2" p="8">
+                  <Spinner size="2" />
+                  <Text>Carregando estatísticas da NBA...</Text>
+                </Flex>
+              ) : careerStats.length > 0 ? (
+                <Box style={{ overflowX: 'auto' }}>
+                  <Table.Root>
+                    <Table.Header>
+                      <Table.Row>
+                        <Table.ColumnHeaderCell>Temporada</Table.ColumnHeaderCell>
+                        <Table.ColumnHeaderCell>Time</Table.ColumnHeaderCell>
+                        <Table.ColumnHeaderCell>J</Table.ColumnHeaderCell>
+                        <Table.ColumnHeaderCell>MIN</Table.ColumnHeaderCell>
+                        <Table.ColumnHeaderCell>PTS</Table.ColumnHeaderCell>
+                        <Table.ColumnHeaderCell>REB</Table.ColumnHeaderCell>
+                        <Table.ColumnHeaderCell>AST</Table.ColumnHeaderCell>
+                        <Table.ColumnHeaderCell>FG%</Table.ColumnHeaderCell>
+                        <Table.ColumnHeaderCell>3P%</Table.ColumnHeaderCell>
+                        <Table.ColumnHeaderCell>FT%</Table.ColumnHeaderCell>
+                        <Table.ColumnHeaderCell>STL</Table.ColumnHeaderCell>
+                        <Table.ColumnHeaderCell>BLK</Table.ColumnHeaderCell>
+                      </Table.Row>
+                    </Table.Header>
+                    <Table.Body>
+                      {careerStats.map((stat, index) => (
+                        <Table.Row key={index}>
+                          <Table.Cell>
+                            <Text weight="medium">{stat.temporada}</Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Text>{stat.team_abbreviation}</Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Text style={{ fontFamily: 'monospace' }}>
+                              {stat.jogos_disputados}
+                            </Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Text style={{ fontFamily: 'monospace' }}>
+                              {stat.minutos_por_jogo.toFixed(1)}
+                            </Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Text style={{ fontFamily: 'monospace' }}>
+                              {stat.points.toFixed(1)}
+                            </Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Text style={{ fontFamily: 'monospace' }}>
+                              {stat.rebounds_total.toFixed(1)}
+                            </Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Text style={{ fontFamily: 'monospace' }}>
+                              {stat.assists.toFixed(1)}
+                            </Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Text style={{ fontFamily: 'monospace' }}>
+                              {(stat.field_goal_percentage * 100).toFixed(1)}%
+                            </Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Text style={{ fontFamily: 'monospace' }}>
+                              {(stat.three_point_percentage * 100).toFixed(1)}%
+                            </Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Text style={{ fontFamily: 'monospace' }}>
+                              {(stat.free_throw_percentage * 100).toFixed(1)}%
+                            </Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Text style={{ fontFamily: 'monospace' }}>
+                              {stat.steals.toFixed(1)}
+                            </Text>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Text style={{ fontFamily: 'monospace' }}>
+                              {stat.blocks.toFixed(1)}
+                            </Text>
+                          </Table.Cell>
+                        </Table.Row>
+                      ))}
+                    </Table.Body>
+                  </Table.Root>
+                </Box>
+              ) : (
+                <Text>Estatísticas de carreira não disponíveis para este jogador.</Text>
+              )}
+            </Box>
           </Card>
         </Tabs.Content>
 
