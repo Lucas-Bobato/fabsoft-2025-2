@@ -28,10 +28,9 @@ export default function GameCard({ gameData }) {
   };
 
   return (
-    <Link href={`/jogos/${slug}`} passHref>
-      <Card asChild>
-        <a style={{ textDecoration: "none", height: "100%" }}>
-          <Flex direction="column" justify="between" style={{ height: "100%" }}>
+    <Link href={`/jogos/${slug}`} style={{ textDecoration: "none", height: "100%" }}>
+      <Card style={{ height: "100%", cursor: "pointer" }}>
+        <Flex direction="column" justify="between" style={{ height: "100%" }}>
             <Box>
               <Text as="p" size="1" color="gray" align="center" mb="3">
                 {temporada}
@@ -100,7 +99,6 @@ export default function GameCard({ gameData }) {
               </Box>
             </Flex>
           </Flex>
-        </a>
       </Card>
     </Link>
   );

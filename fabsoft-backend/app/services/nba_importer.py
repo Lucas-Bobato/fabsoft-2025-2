@@ -1,7 +1,11 @@
 from typing import Optional
 from sqlalchemy.orm import Session
 from nba_api.stats.static import teams
-from nba_api.stats.endpoints import commonallplayers, leaguegamefinder, boxscoresummaryv2, boxscoretraditionalv2, commonplayerinfo, playerawards, teamdetails
+from nba_api.stats.endpoints import (
+    commonallplayers, leaguegamefinder, boxscoresummaryv2, 
+    boxscoretraditionalv2, boxscoretraditionalv3, commonplayerinfo, 
+    playerawards, teamdetails, scheduleleaguev2
+)
 from nba_api.stats.endpoints import scoreboardv2
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -173,8 +177,169 @@ def sync_nba_teams(db: Session):
     print(f"Sincronização concluída. {times_adicionados} novos times adicionados.")
     return {"total_sincronizado": len(nba_teams), "novos_adicionados": times_adicionados}
 
+def sync_nba_games_v2(db: Session, season: str):
+    """
+    NOVA versão que usa ScheduleLeagueV2 - método modernizado e mais confiável.
+    """
+    print(f"Iniciando a sincronização de jogos da temporada {season} (método modernizado)...")
+    
+    try:
+        # Usa o novo endpoint ScheduleLeagueV2
+        games_df = _get_games_from_schedule_v2(season, silent_fail=False)
+        
+        if games_df is None or games_df.empty:
+            print(f"Nenhum jogo encontrado para a temporada {season}")
+            return {"total_sincronizado": 0, "novos_adicionados": 0}
+        
+        print(f"Total de jogos encontrados na API: {len(games_df)}")
+        
+        jogos_adicionados = 0
+        liga_nba_id = 1
+        
+        for _, game in games_df.iterrows():
+            try:
+                game_id = game.get('GAME_ID')
+                if not game_id:
+                    continue
+                    
+                db_jogo = crud.get_jogo_by_api_id(db, api_id=game_id)
+                
+                if not db_jogo:
+                    home_team_id = game.get('HOME_TEAM_ID')
+                    visitor_team_id = game.get('VISITOR_TEAM_ID')
+                    
+                    if not home_team_id or not visitor_team_id:
+                        continue
+                    
+                    time_casa_local = crud.get_time_by_api_id(db, api_id=home_team_id)
+                    time_visitante_local = crud.get_time_by_api_id(db, api_id=visitor_team_id)
+                    
+                    if time_casa_local and time_visitante_local:
+                        game_date_str = game.get('GAME_DATE', '')
+                        if not game_date_str:
+                            continue
+                            
+                        game_date_naive = datetime.strptime(game_date_str, '%Y-%m-%d')
+                        game_date_aware = datetime.combine(game_date_naive, datetime.min.time(), tzinfo=timezone.utc)
+                        
+                        db_jogo = crud.create_jogo(db, jogo=schemas.JogoCreate(
+                            api_id=game_id,
+                            data_jogo=game_date_aware,
+                            temporada=season,
+                            liga_id=liga_nba_id,
+                            time_casa_id=time_casa_local.id,
+                            time_visitante_id=time_visitante_local.id,
+                        ))
+                        jogos_adicionados += 1
+                
+                # Atualiza estatísticas se o jogo já terminou
+                if (db_jogo and 
+                    db_jogo.data_jogo < datetime.now(timezone.utc) and 
+                    db_jogo.placar_casa == 0 and
+                    game.get('GAME_STATUS_ID', 1) == 3):  # Status 3 = Final
+                    
+                    try:
+                        print(f"Atualizando estatísticas do jogo finalizado ID: {game_id}")
+                        time.sleep(0.6)
+                        
+                        # Usa ScheduleLeagueV2 data se disponível
+                        home_score = game.get('HOME_TEAM_SCORE', 0)
+                        away_score = game.get('AWAY_TEAM_SCORE', 0)
+                        
+                        if home_score > 0 or away_score > 0:
+                            # Atualiza placar direto do ScheduleLeagueV2
+                            crud.update_jogo_scores(
+                                db,
+                                jogo_id=db_jogo.id,
+                                placar_casa=safe_int(home_score),
+                                placar_visitante=safe_int(away_score),
+                                status="Final",
+                            )
+                        else:
+                            # Fallback para BoxScoreSummaryV2 se placar não estiver disponível
+                            summary_df = boxscoresummaryv2.BoxScoreSummaryV2(game_id=game_id, timeout=60).get_data_frames()
+                            
+                            if summary_df and len(summary_df) > 5 and not summary_df[0].empty and not summary_df[5].empty:
+                                game_summary = summary_df[0].iloc[0]
+                                line_score = summary_df[5]
+                                
+                                placar_casa = safe_int(line_score[line_score['TEAM_ID'] == db_jogo.time_casa.api_id]['PTS'].iloc[0])
+                                placar_visitante = safe_int(line_score[line_score['TEAM_ID'] == db_jogo.time_visitante.api_id]['PTS'].iloc[0])
+                                status_final = game_summary['GAME_STATUS_TEXT']
+                                
+                                crud.update_jogo_scores(
+                                    db,
+                                    jogo_id=db_jogo.id,
+                                    placar_casa=placar_casa,
+                                    placar_visitante=placar_visitante,
+                                    status=status_final,
+                                )
+                        
+                        # Busca estatísticas dos jogadores (usa método modernizado)
+                        player_stats_df = None
+                        try:
+                            player_stats_df = boxscoretraditionalv3.BoxScoreTraditionalV3(
+                                game_id=game_id,
+                                start_period=1,
+                                end_period=10,
+                                start_range=0,
+                                end_range=0,
+                                range_type=0,
+                                timeout=60
+                            ).get_data_frames()[0]
+                            print(f"    -> Usando BoxScoreTraditionalV3 para jogo {game_id}")
+                        except Exception as v3_error:
+                            print(f"    -> BoxScoreTraditionalV3 falhou, usando V2: {v3_error}")
+                            player_stats_df = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=60).get_data_frames()[0]
+                        
+                        # Processa estatísticas dos jogadores
+                        for index, p_stat in player_stats_df.iterrows():
+                            player_id = p_stat.get('PLAYER_ID') or p_stat.get('personId')
+                            if not player_id:
+                                continue
+                                
+                            db_player = crud.get_jogador_by_api_id(db, api_id=player_id)
+                            if db_player and not crud.get_estatistica(db, jogo_id=db_jogo.id, jogador_id=db_player.id):
+                                minutos_decimais = 0.0
+                                minutos_str = p_stat.get('MIN') or p_stat.get('minutes')
+                                if isinstance(minutos_str, str) and ':' in minutos_str:
+                                    minutos, segundos = map(int, minutos_str.split(':'))
+                                    minutos_decimais = round(minutos + segundos / 60.0, 2)
+                                
+                                pontos = p_stat.get('PTS') or p_stat.get('points')
+                                rebotes = p_stat.get('REB') or p_stat.get('reboundsTotal')
+                                assistencias = p_stat.get('AST') or p_stat.get('assists')
+                                
+                                nova_stat = schemas.EstatisticaCreate(
+                                    jogador_id=db_player.id,
+                                    minutos_jogados=minutos_decimais,
+                                    pontos=safe_int(pontos),
+                                    rebotes=safe_int(rebotes),
+                                    assistencias=safe_int(assistencias)
+                                )
+                                crud.create_estatistica_jogo(db, estatistica=nova_stat, jogo_id=db_jogo.id)
+                    
+                    except Exception as e:
+                        print(f"Erro ao buscar detalhes do jogo ID {game_id}: {e}")
+                        
+            except Exception as game_error:
+                print(f"Erro ao processar jogo: {game_error}")
+                continue
+        
+        print(f"Sincronização concluída (método modernizado). {jogos_adicionados} novos jogos adicionados.")
+        return {"total_sincronizado": len(games_df), "novos_adicionados": jogos_adicionados}
+        
+    except Exception as e:
+        print(f"Erro na sincronização de jogos (método modernizado): {e}")
+        print("Tentando método legacy...")
+        return sync_nba_games(db, season)
+
 def sync_nba_games(db: Session, season: str):
-    print(f"Iniciando a sincronização de jogos da temporada {season}...")
+    """
+    VERSÃO LEGACY que usa LeagueGameFinder - mantida como fallback.
+    Use sync_nba_games_v2() para o método modernizado com ScheduleLeagueV2.
+    """
+    print(f"Iniciando a sincronização de jogos da temporada {season} (método legacy)...")
     
     game_finder = leaguegamefinder.LeagueGameFinder(season_nullable=season, timeout=60)
     games_df = game_finder.get_data_frames()[0]
@@ -243,23 +408,50 @@ def sync_nba_games(db: Session, season: str):
                     status=status_final,
                 )
                 
-                player_stats_df = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=timeout_individual).get_data_frames()[0]
+                # Tenta usar BoxScoreTraditionalV3 primeiro (mais moderno)
+                player_stats_df = None
+                try:
+                    player_stats_df = boxscoretraditionalv3.BoxScoreTraditionalV3(
+                        game_id=game_id,
+                        start_period=1,
+                        end_period=10,
+                        start_range=0,
+                        end_range=0,
+                        range_type=0,
+                        timeout=timeout_individual
+                    ).get_data_frames()[0]
+                    print(f"    -> Usando BoxScoreTraditionalV3 para jogo {game_id}")
+                except Exception as v3_error:
+                    print(f"    -> BoxScoreTraditionalV3 falhou, usando V2: {v3_error}")
+                    player_stats_df = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=timeout_individual).get_data_frames()[0]
                 
                 for index, p_stat in player_stats_df.iterrows():
-                    db_player = crud.get_jogador_by_api_id(db, api_id=p_stat['PLAYER_ID'])
+                    # Compatibilidade entre V2 e V3
+                    player_id = p_stat.get('PLAYER_ID') or p_stat.get('personId')
+                    if not player_id:
+                        continue
+                        
+                    db_player = crud.get_jogador_by_api_id(db, api_id=player_id)
                     if db_player and not crud.get_estatistica(db, jogo_id=db_jogo.id, jogador_id=db_player.id):
                         minutos_decimais = 0.0
-                        minutos_str = p_stat.get('MIN')
+                        
+                        # V3 usa 'minutes', V2 usa 'MIN'
+                        minutos_str = p_stat.get('MIN') or p_stat.get('minutes')
                         if isinstance(minutos_str, str) and ':' in minutos_str:
                             minutos, segundos = map(int, minutos_str.split(':'))
                             minutos_decimais = round(minutos + segundos / 60.0, 2)
                         
+                        # V3 usa 'points', V2 usa 'PTS'
+                        pontos = p_stat.get('PTS') or p_stat.get('points')
+                        rebotes = p_stat.get('REB') or p_stat.get('reboundsTotal')
+                        assistencias = p_stat.get('AST') or p_stat.get('assists')
+                        
                         nova_stat = schemas.EstatisticaCreate(
                             jogador_id=db_player.id,
                             minutos_jogados=minutos_decimais,
-                            pontos=safe_int(p_stat.get('PTS')),
-                            rebotes=safe_int(p_stat.get('REB')),
-                            assistencias=safe_int(p_stat.get('AST'))
+                            pontos=safe_int(pontos),
+                            rebotes=safe_int(rebotes),
+                            assistencias=safe_int(assistencias)
                         )
                         crud.create_estatistica_jogo(db, estatistica=nova_stat, jogo_id=db_jogo.id)
             except Exception as e:
@@ -268,36 +460,552 @@ def sync_nba_games(db: Session, season: str):
     print(f"Sincronização concluída. {jogos_adicionados} novos jogos adicionados.")
     return {"total_sincronizado": len(unique_game_ids), "novos_adicionados": jogos_adicionados}
 
-def sync_future_games(db: Session, days_ahead: int = 30):
+def _get_games_from_schedule_v2(season: str = None, silent_fail: bool = False):
     """
-    Busca jogos agendados, convertendo corretamente a hora do jogo do fuso horário
-    de origem (ET) para um formato universal (UTC) antes de salvar.
+    Nova função que usa ScheduleLeagueV2 (validado em 2025-01-14).
+    Este endpoint é muito mais confiável e moderno que o ScoreboardV2.
     """
-    print(f"Iniciando a sincronização de jogos futuros para os próximos {days_ahead} dias...")
+    try:
+        if not season:
+            # Determina a temporada atual (corrigido para 2025)
+            current_date = datetime.now()
+            if current_date.month >= 7:  # Julho ou depois = próxima temporada 
+                season = f"{current_date.year}-{str(current_date.year + 1)[-2:]}"
+            else:  # Janeiro a junho = temporada anterior
+                season = f"{current_date.year - 1}-{str(current_date.year)[-2:]}"
+        
+        if not silent_fail:
+            print(f"    -> Buscando jogos via ScheduleLeagueV2 para temporada {season}...")
+        
+        # Usa o novo endpoint ScheduleLeagueV2
+        schedule = scheduleleaguev2.ScheduleLeagueV2(
+            league_id="00",  # NBA
+            season=season,
+            timeout=30
+        )
+        
+        games_df = schedule.get_data_frames()[0]  # season_games
+        
+        if games_df.empty:
+            if not silent_fail:
+                print(f"    -> Nenhum jogo encontrado na temporada {season}")
+            return None
+        
+        # Converte para formato compatível
+        converted_games = []
+        for _, game in games_df.iterrows():
+            # Converte data do formato MM/DD/YYYY para YYYY-MM-DD
+            game_date_raw = game.get('gameDate', '')
+            game_date_formatted = ''
+            if game_date_raw:
+                try:
+                    # Remove a parte de hora se existir
+                    date_part = game_date_raw.split(' ')[0]
+                    # Converte MM/DD/YYYY para YYYY-MM-DD
+                    if '/' in date_part:
+                        month, day, year = date_part.split('/')
+                        game_date_formatted = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+                    else:
+                        game_date_formatted = date_part.split('T')[0] if 'T' in date_part else date_part
+                except:
+                    game_date_formatted = ''
+            
+            converted_games.append({
+                'GAME_ID': game.get('gameId'),
+                'HOME_TEAM_ID': game.get('homeTeam_teamId'),
+                'VISITOR_TEAM_ID': game.get('awayTeam_teamId'),
+                'GAME_STATUS_TEXT': game.get('gameStatusText', ''),
+                'GAME_DATE': game_date_formatted,
+                'SEASON': season,
+                'GAME_STATUS_ID': game.get('gameStatus', 1),
+                'ARENA_NAME': game.get('arenaName', ''),
+                'HOME_TEAM_SCORE': game.get('homeTeam_score', 0),
+                'AWAY_TEAM_SCORE': game.get('awayTeam_score', 0)
+            })
+        
+        if converted_games:
+            import pandas as pd
+            result_df = pd.DataFrame(converted_games)
+            if not silent_fail:
+                print(f"    -> {len(result_df)} jogos encontrados via ScheduleLeagueV2")
+            return result_df
+            
+    except Exception as e:
+        if not silent_fail:
+            print(f"    -> ScheduleLeagueV2 falhou: {e}")
+    
+    return None
+
+def _get_scoreboard_data_safely(date_str: str):
+    """
+    Função auxiliar para acessar dados do scoreboard.
+    Como ScoreboardV2 tem problema com WinProbability, usa LeagueGameFinder como alternativa.
+    """
+    import pandas as pd
+    from datetime import datetime
+    
+    # MÉTODO ALTERNATIVO: Usa LeagueGameFinder para jogos futuros
+    try:
+        print(f"    -> Buscando jogos via LeagueGameFinder para {date_str}...")
+        
+        # Determina a temporada baseada na data (corrigido para 2025)
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+        if date_obj.month >= 7:  # Julho ou depois = próxima temporada 
+            season = f"{date_obj.year}-{str(date_obj.year + 1)[-2:]}"
+        else:  # Janeiro a junho = temporada anterior
+            season = f"{date_obj.year - 1}-{str(date_obj.year)[-2:]}"
+        
+        # Busca jogos da temporada
+        game_finder = leaguegamefinder.LeagueGameFinder(
+            season_nullable=season,
+            timeout=30
+        )
+        games_df = game_finder.get_data_frames()[0]
+        
+        if games_df.empty:
+            print(f"    -> Nenhum jogo encontrado para temporada {season}")
+            return None
+        
+        # Filtra jogos da data específica
+        # Converte GAME_DATE para string se necessário e filtra
+        games_df['GAME_DATE'] = games_df['GAME_DATE'].astype(str)
+        daily_games = games_df[games_df['GAME_DATE'] == date_str]
+        
+        if not daily_games.empty:
+            # Converte para formato compatível com ScoreboardV2
+            # Agrupa por GAME_ID para pegar apenas um registro por jogo
+            unique_games = daily_games.drop_duplicates(subset=['GAME_ID'])
+            
+            # Mapeia colunas para formato esperado
+            converted_games = []
+            for _, game in unique_games.iterrows():
+                # Determina time casa/visitante baseado no MATCHUP
+                matchup = str(game.get('MATCHUP', ''))
+                if '@' in matchup:
+                    # Time visitante (joga fora)
+                    home_team_id = None  # Precisaremos determinar isso
+                    visitor_team_id = game.get('TEAM_ID')
+                else:
+                    # Time casa (joga em casa)
+                    home_team_id = game.get('TEAM_ID')
+                    visitor_team_id = None
+                
+                converted_games.append({
+                    'GAME_ID': game.get('GAME_ID'),
+                    'HOME_TEAM_ID': home_team_id,
+                    'VISITOR_TEAM_ID': visitor_team_id,
+                    'GAME_STATUS_TEXT': '7:00 PM ET',  # Horário padrão
+                    'GAME_DATE': game.get('GAME_DATE'),
+                    'MATCHUP': matchup,
+                    'TEAM_ID': game.get('TEAM_ID')
+                })
+            
+            if converted_games:
+                # Agora precisamos completar os pares home/visitor
+                games_by_id = {}
+                for game in converted_games:
+                    game_id = game['GAME_ID']
+                    if game_id not in games_by_id:
+                        games_by_id[game_id] = {'home': None, 'visitor': None, 'data': game}
+                    
+                    matchup = game['MATCHUP']
+                    if '@' in matchup:
+                        games_by_id[game_id]['visitor'] = game['TEAM_ID']
+                    else:
+                        games_by_id[game_id]['home'] = game['TEAM_ID']
+                
+                # Cria lista final com jogos completos
+                final_games = []
+                for game_id, game_info in games_by_id.items():
+                    if game_info['home'] and game_info['visitor']:
+                        game_data = game_info['data'].copy()
+                        game_data['HOME_TEAM_ID'] = game_info['home']
+                        game_data['VISITOR_TEAM_ID'] = game_info['visitor']
+                        final_games.append(game_data)
+                
+                if final_games:
+                    result_df = pd.DataFrame(final_games)
+                    print(f"    -> {len(result_df)} jogos encontrados via LeagueGameFinder")
+                    return result_df
+        
+        print(f"    -> Nenhum jogo encontrado para {date_str} na temporada {season}")
+        return None
+        
+    except Exception as e:
+        print(f"    -> LeagueGameFinder falhou para {date_str}: {e}")
+    
+    # MÉTODO ORIGINAL (mantido como fallback, mas provavelmente falhará)
+    try:
+        daily_scoreboard = scoreboardv2.ScoreboardV2(game_date=date_str, timeout=30)
+        
+        try:
+            raw_data = daily_scoreboard.get_dict()
+            
+            if 'resultSets' in raw_data and len(raw_data['resultSets']) > 0:
+                for result_set in raw_data['resultSets']:
+                    if 'headers' in result_set and 'rowSet' in result_set and result_set['rowSet']:
+                        headers = result_set['headers']
+                        rows = result_set['rowSet']
+                        
+                        required_fields = ['GAME_ID', 'HOME_TEAM_ID', 'VISITOR_TEAM_ID']
+                        if all(field in headers for field in required_fields):
+                            df = pd.DataFrame(rows, columns=headers)
+                            
+                            problematic_columns = ['WinProbability', 'WIN_PROBABILITY']
+                            for col in problematic_columns:
+                                if col in df.columns:
+                                    df = df.drop(columns=[col])
+                            
+                            if not df.empty:
+                                print(f"    -> ScoreboardV2 funcionou para {date_str}: {len(df)} jogos")
+                                return df
+                                
+        except Exception as e:
+            print(f"    -> ScoreboardV2 falhou para {date_str}: {e}")
+            
+    except Exception as e:
+        error_msg = str(e)
+        if any(prob_field in error_msg for prob_field in ['WinProbability', 'WIN_PROBABILITY']):
+            print(f"    -> WinProbability não disponível para {date_str} - usando método alternativo")
+        else:
+            print(f"    -> Erro ao acessar scoreboard para {date_str}: {type(e).__name__}: {e}")
+    
+    return None
+
+def _sync_games_from_schedule_v2(db: Session, days_ahead: int = 30, silent_fail: bool = False):
+    """
+    Sincroniza jogos usando o novo endpoint ScheduleLeagueV2.
+    Este é o método mais moderno e confiável disponível.
+    """
+    if not silent_fail:
+        print(f"Buscando jogos via ScheduleLeagueV2 para os próximos {days_ahead} dias...")
+    
     jogos_adicionados = 0
     liga_nba_id = 1
+    
+    try:
+        # Determina a temporada atual (corrigido para 2025)
+        current_date = datetime.now()
+        if current_date.month >= 7:  # Julho ou depois = próxima temporada 
+            season = f"{current_date.year}-{str(current_date.year + 1)[-2:]}"
+        else:  # Janeiro a junho = temporada anterior
+            season = f"{current_date.year - 1}-{str(current_date.year)[-2:]}"
+        
+        # Busca todos os jogos da temporada usando ScheduleLeagueV2
+        games_df = _get_games_from_schedule_v2(season, silent_fail)
+        
+        if games_df is None or games_df.empty:
+            if not silent_fail:
+                print(f"Nenhum jogo encontrado para a temporada {season}")
+            return {"total_sincronizado": 0, "novos_adicionados": 0}
+        
+        # Filtra jogos futuros
+        today = datetime.now().strftime('%Y-%m-%d')
+        future_date = (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
+        
+        # Filtra por data
+        future_games = games_df[
+            (games_df['GAME_DATE'] >= today) & 
+            (games_df['GAME_DATE'] <= future_date)
+        ]
+        
+        if future_games.empty:
+            if not silent_fail:
+                print(f"Nenhum jogo futuro encontrado entre {today} e {future_date}")
+            return {"total_sincronizado": 0, "novos_adicionados": 0}
+        
+        if not silent_fail:
+            print(f"Encontrados {len(future_games)} jogos futuros para processar...")
+        
+        for _, game in future_games.iterrows():
+            try:
+                game_id = game.get('GAME_ID')
+                if not game_id:
+                    continue
+                
+                # Verifica se o jogo já existe no banco
+                if crud.get_jogo_by_api_id(db, api_id=game_id):
+                    continue
+                
+                home_team_id = game.get('HOME_TEAM_ID')
+                visitor_team_id = game.get('VISITOR_TEAM_ID')
+                
+                if not home_team_id or not visitor_team_id:
+                    if not silent_fail:
+                        print(f"    -> Jogo {game_id}: IDs de times inválidos")
+                    continue
+                
+                # Busca os times no banco de dados
+                time_casa_local = crud.get_time_by_api_id(db, api_id=home_team_id)
+                time_visitante_local = crud.get_time_by_api_id(db, api_id=visitor_team_id)
+                
+                if not time_casa_local or not time_visitante_local:
+                    if not silent_fail:
+                        print(f"    -> Times não encontrados para o jogo {game_id}")
+                    continue
+                
+                # Prepara data do jogo
+                game_date_str = game.get('GAME_DATE', '')
+                if not game_date_str:
+                    continue
+                
+                data_base = datetime.strptime(game_date_str, '%Y-%m-%d')
+                data_jogo_final = datetime.combine(data_base, datetime.min.time(), tzinfo=timezone.utc)
+                
+                # Tenta processar o horário do jogo se disponível
+                try:
+                    game_time_str = game.get('GAME_STATUS_TEXT', '')
+                    if game_time_str and "ET" in game_time_str and ":" in game_time_str:
+                        et_zone = ZoneInfo("America/New_York")
+                        time_str = game_time_str.replace(' ET', '')
+                        time_obj = datetime.strptime(time_str, '%I:%M %p').time()
+                        data_jogo_final = datetime.combine(data_base, time_obj, tzinfo=et_zone)
+                except (ValueError, TypeError) as e:
+                    if not silent_fail:
+                        print(f"    -> Usando horário padrão para jogo {game_id}")
+                
+                # Cria o jogo no banco
+                crud.create_jogo(db, jogo=schemas.JogoCreate(
+                    api_id=game_id,
+                    data_jogo=data_jogo_final,
+                    temporada=season,
+                    liga_id=liga_nba_id,
+                    time_casa_id=time_casa_local.id,
+                    time_visitante_id=time_visitante_local.id,
+                ))
+                
+                jogos_adicionados += 1
+                
+                if not silent_fail:
+                    print(f"    -> Jogo adicionado: {time_casa_local.sigla} vs {time_visitante_local.sigla} em {game_date_str}")
+                
+            except Exception as game_error:
+                if not silent_fail:
+                    print(f"    -> Erro ao processar jogo {game_id}: {game_error}")
+                continue
+        
+        if not silent_fail:
+            print(f"Sincronização via ScheduleLeagueV2 concluída. {jogos_adicionados} jogos adicionados.")
+        
+        return {"total_sincronizado": jogos_adicionados, "novos_adicionados": jogos_adicionados}
+        
+    except Exception as e:
+        if not silent_fail:
+            print(f"Erro na sincronização via ScheduleLeagueV2: {e}")
+        return {"total_sincronizado": 0, "novos_adicionados": 0}
+
+def _get_future_games_from_league_finder(db: Session, days_ahead: int = 30, silent_fail: bool = False):
+    """
+    Método alternativo para buscar jogos futuros usando LeagueGameFinder.
+    Este método funciona melhor para jogos já agendados pela NBA.
+    """
+    from datetime import datetime, timedelta
+    
+    if not silent_fail:
+        print(f"Buscando jogos futuros via LeagueGameFinder para os próximos {days_ahead} dias...")
+    
+    jogos_adicionados = 0
+    liga_nba_id = 1
+    
+    try:
+        # Determina a temporada atual (corrigido para 2025)
+        current_date = datetime.now()
+        if current_date.month >= 7:  # Julho ou depois = próxima temporada 
+            season = f"{current_date.year}-{str(current_date.year + 1)[-2:]}"
+        else:  # Janeiro a junho = temporada anterior
+            season = f"{current_date.year - 1}-{str(current_date.year)[-2:]}"
+        
+        if not silent_fail:
+            print(f"Buscando jogos da temporada {season}...")
+        
+        # Busca todos os jogos da temporada
+        game_finder = leaguegamefinder.LeagueGameFinder(
+            season_nullable=season,
+            timeout=60
+        )
+        all_games = game_finder.get_data_frames()[0]
+        
+        if all_games.empty:
+            if not silent_fail:
+                print(f"Nenhum jogo encontrado para a temporada {season}")
+            return {"total_sincronizado": 0, "novos_adicionados": 0}
+        
+        # Filtra jogos futuros
+        today = datetime.now().strftime('%Y-%m-%d')
+        future_date = (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
+        
+        # Converte GAME_DATE para string e filtra
+        all_games['GAME_DATE'] = all_games['GAME_DATE'].astype(str)
+        future_games = all_games[
+            (all_games['GAME_DATE'] >= today) & 
+            (all_games['GAME_DATE'] <= future_date)
+        ]
+        
+        if future_games.empty:
+            if not silent_fail:
+                print(f"Nenhum jogo futuro encontrado entre {today} e {future_date}")
+            return {"total_sincronizado": 0, "novos_adicionados": 0}
+        
+        # Agrupa por GAME_ID para processar cada jogo apenas uma vez
+        unique_game_ids = future_games['GAME_ID'].unique()
+        
+        if not silent_fail:
+            print(f"Encontrados {len(unique_game_ids)} jogos únicos para processar...")
+        
+        for game_id in unique_game_ids:
+            try:
+                # Verifica se o jogo já existe no banco
+                if crud.get_jogo_by_api_id(db, api_id=game_id):
+                    continue
+                
+                # Pega os dois registros do jogo (um para cada time)
+                game_records = future_games[future_games['GAME_ID'] == game_id]
+                
+                if len(game_records) < 2:
+                    continue  # Precisa de dois registros (casa e visitante)
+                
+                # Determina qual é casa e qual é visitante
+                home_record = None
+                visitor_record = None
+                
+                for _, record in game_records.iterrows():
+                    matchup = str(record.get('MATCHUP', ''))
+                    if '@' in matchup:
+                        visitor_record = record  # Joga fora de casa
+                    else:
+                        home_record = record     # Joga em casa
+                
+                if home_record is None or visitor_record is None:
+                    continue
+                
+                # Busca os times no banco de dados
+                time_casa_local = crud.get_time_by_api_id(db, api_id=home_record['TEAM_ID'])
+                time_visitante_local = crud.get_time_by_api_id(db, api_id=visitor_record['TEAM_ID'])
+                
+                if not time_casa_local or not time_visitante_local:
+                    if not silent_fail:
+                        print(f"    -> Times não encontrados para o jogo {game_id}")
+                    continue
+                
+                # Prepara data do jogo
+                game_date_str = str(home_record['GAME_DATE'])
+                data_base = datetime.strptime(game_date_str, '%Y-%m-%d')
+                data_jogo_final = datetime.combine(data_base, datetime.min.time(), tzinfo=timezone.utc)
+                
+                # Cria o jogo no banco
+                crud.create_jogo(db, jogo=schemas.JogoCreate(
+                    api_id=game_id,
+                    data_jogo=data_jogo_final,
+                    temporada=season,
+                    liga_id=liga_nba_id,
+                    time_casa_id=time_casa_local.id,
+                    time_visitante_id=time_visitante_local.id,
+                ))
+                
+                jogos_adicionados += 1
+                
+                if not silent_fail:
+                    print(f"    -> Jogo adicionado: {time_casa_local.sigla} vs {time_visitante_local.sigla} em {game_date_str}")
+                
+            except Exception as game_error:
+                if not silent_fail:
+                    print(f"    -> Erro ao processar jogo {game_id}: {game_error}")
+                continue
+        
+        if not silent_fail:
+            print(f"Sincronização via LeagueGameFinder concluída. {jogos_adicionados} jogos adicionados.")
+        
+        return {"total_sincronizado": jogos_adicionados, "novos_adicionados": jogos_adicionados}
+        
+    except Exception as e:
+        if not silent_fail:
+            print(f"Erro na sincronização via LeagueGameFinder: {e}")
+        return {"total_sincronizado": 0, "novos_adicionados": 0}
+
+def sync_future_games(db: Session, days_ahead: int = 30, silent_fail: bool = False):
+    """
+    Busca jogos agendados usando múltiplos métodos modernizados.
+    Ordem de prioridade: 1) ScheduleLeagueV2, 2) LeagueGameFinder, 3) ScoreboardV2.
+    
+    Args:
+        db: Sessão do banco de dados
+        days_ahead: Número de dias para buscar jogos futuros
+        silent_fail: Se True, falha silenciosamente em caso de muitos erros
+    """
+    if not silent_fail:
+        print(f"Iniciando a sincronização de jogos futuros para os próximos {days_ahead} dias...")
+    
+    # MÉTODO 1: ScheduleLeagueV2 (NOVO - mais moderno e confiável)
+    if not silent_fail:
+        print("Tentando método 1: ScheduleLeagueV2 (endpoint modernizado)...")
+    
+    result_schedule_v2 = _sync_games_from_schedule_v2(db, days_ahead, silent_fail)
+    
+    if result_schedule_v2['novos_adicionados'] > 0:
+        if not silent_fail:
+            print(f"✅ Sucesso com ScheduleLeagueV2: {result_schedule_v2['novos_adicionados']} jogos adicionados!")
+        return result_schedule_v2
+    
+    # MÉTODO 2: Tenta LeagueGameFinder (método anterior que funcionava)
+    if not silent_fail:
+        print("Método 1 não encontrou jogos. Tentando método 2: LeagueGameFinder...")
+    
+    result_league_finder = _get_future_games_from_league_finder(db, days_ahead, silent_fail)
+    
+    if result_league_finder['novos_adicionados'] > 0:
+        if not silent_fail:
+            print(f"✅ Sucesso com LeagueGameFinder: {result_league_finder['novos_adicionados']} jogos adicionados!")
+        return result_league_finder
+    
+    # MÉTODO 3: Fallback para ScoreboardV2 (método legado, pode falhar com WinProbability)
+    if not silent_fail:
+        print("Métodos 1 e 2 não encontraram jogos. Tentando método 3: ScoreboardV2 (legado)...")
+    
+    jogos_adicionados = 0
+    liga_nba_id = 1
+    consecutive_errors = 0
+    max_consecutive_errors = 3 if silent_fail else 5
     
     for i in range(days_ahead):
         check_date = datetime.now() + timedelta(days=i)
         date_str = check_date.strftime('%Y-%m-%d')
         
         try:
-            daily_scoreboard = scoreboardv2.ScoreboardV2(game_date=date_str, timeout=60)
-            games_df = daily_scoreboard.game_header.get_data_frame()
+            games_df = _get_scoreboard_data_safely(date_str)
             time.sleep(0.6)
 
-            if games_df.empty:
+            if games_df is None or games_df.empty:
+                consecutive_errors += 1
+                if not silent_fail:
+                    print(f"    -> Nenhum jogo encontrado para {date_str}")
+                if consecutive_errors >= max_consecutive_errors:
+                    if not silent_fail:
+                        print(f"Muitos erros consecutivos ({consecutive_errors}). Interrompendo sincronização.")
+                    break
                 continue
+            else:
+                consecutive_errors = 0  # Reset counter on success
+                if not silent_fail:
+                    print(f"    -> {len(games_df)} jogos encontrados para {date_str}")
 
             for index, game in games_df.iterrows():
-                game_id = game['GAME_ID']
-                
-                if not crud.get_jogo_by_api_id(db, api_id=game_id):
-                    home_team_id = game['HOME_TEAM_ID']
-                    visitor_team_id = game['VISITOR_TEAM_ID']
+                try:
+                    # Acesso seguro aos campos essenciais
+                    game_id = game.get('GAME_ID')
+                    if not game_id:
+                        continue
+                        
+                    if not crud.get_jogo_by_api_id(db, api_id=game_id):
+                        home_team_id = game.get('HOME_TEAM_ID')
+                        visitor_team_id = game.get('VISITOR_TEAM_ID')
+                        
+                        if not home_team_id or not visitor_team_id:
+                            if not silent_fail:
+                                print(f"    -> Jogo {game_id}: IDs de times inválidos")
+                            continue
 
-                    time_casa_local = crud.get_time_by_api_id(db, api_id=home_team_id)
-                    time_visitante_local = crud.get_time_by_api_id(db, api_id=visitor_team_id)
+                        time_casa_local = crud.get_time_by_api_id(db, api_id=home_team_id)
+                        time_visitante_local = crud.get_time_by_api_id(db, api_id=visitor_team_id)
                     
                     if time_casa_local and time_visitante_local:
                         
@@ -305,9 +1013,9 @@ def sync_future_games(db: Session, days_ahead: int = 30):
                         data_jogo_final = datetime.combine(data_base, datetime.min.time(), tzinfo=timezone.utc)
 
                         try:
-                            game_time_str = game['GAME_STATUS_TEXT']
+                            game_time_str = game.get('GAME_STATUS_TEXT', '')
                             
-                            if "ET" in game_time_str and ":" in game_time_str:
+                            if game_time_str and "ET" in game_time_str and ":" in game_time_str:
                                 # 1. Define o fuso horário de origem (ET)
                                 et_zone = ZoneInfo("America/New_York")
                                 
@@ -318,15 +1026,27 @@ def sync_future_games(db: Session, days_ahead: int = 30):
                                 # 3. Combina data, hora e fuso horário para criar um objeto "consciente"
                                 data_jogo_final = datetime.combine(data_base, time_obj, tzinfo=et_zone)
                             else:
-                                print(f"Formato de hora não reconhecido para o jogo {game_id}: '{game_time_str}'. A usar 00:00 UTC.")
+                                if not silent_fail and game_time_str:
+                                    print(f"    -> Formato de hora não reconhecido para o jogo {game_id}: '{game_time_str}'. Usando 00:00 UTC.")
 
-                        except (ValueError, TypeError):
-                            print(f"Não foi possível determinar a hora para o jogo {game_id}. A usar 00:00 UTC.")
+                        except (ValueError, TypeError) as e:
+                            if not silent_fail:
+                                print(f"    -> Não foi possível determinar a hora para o jogo {game_id}. Usando 00:00 UTC.")
 
-                        print(f"Adicionando novo jogo futuro: {time_casa_local.sigla} vs {time_visitante_local.sigla} em {data_jogo_final}")
+                        if not silent_fail:
+                            print(f"    -> Adicionando novo jogo futuro: {time_casa_local.sigla} vs {time_visitante_local.sigla} em {data_jogo_final}")
                         
-                        season_year = game['GAMECODE'].split('/')[0][:4]
-                        season = f"{season_year}-{str(int(season_year)+1)[-2:]}"
+                        # Tratamento seguro do GAMECODE para extrair temporada
+                        season = "2024-25"  # Temporada padrão atual
+                        try:
+                            gamecode = game.get('GAMECODE', '')
+                            if gamecode and '/' in gamecode:
+                                season_year = gamecode.split('/')[0][:4]
+                                if season_year.isdigit():
+                                    season = f"{season_year}-{str(int(season_year)+1)[-2:]}"
+                        except (ValueError, IndexError, TypeError):
+                            if not silent_fail:
+                                print(f"    -> Usando temporada padrão {season} para o jogo {game_id}")
 
                         crud.create_jogo(db, jogo=schemas.JogoCreate(
                             api_id=game_id,
@@ -337,13 +1057,48 @@ def sync_future_games(db: Session, days_ahead: int = 30):
                             time_visitante_id=time_visitante_local.id,
                         ))
                         jogos_adicionados += 1
+                        
+                except Exception as game_error:
+                    if not silent_fail:
+                        print(f"    -> Erro ao processar jogo individual: {game_error}")
+                    continue
 
         except Exception as e:
-            print(f"Erro ao buscar jogos para o dia {date_str}: {e}")
+            consecutive_errors += 1
+            if not silent_fail:
+                if 'WinProbability' in str(e):
+                    print(f"Erro ao buscar jogos para o dia {date_str}: Campo WinProbability não disponível")
+                elif 'HTTPSConnectionPool' in str(e) and 'timeout' in str(e):
+                    print(f"Erro ao buscar jogos para o dia {date_str}: Timeout de conexão")
+                else:
+                    print(f"Erro ao buscar jogos para o dia {date_str}: {e}")
+            
+            if consecutive_errors >= max_consecutive_errors:
+                if not silent_fail:
+                    print(f"Muitos erros consecutivos ({consecutive_errors}). Interrompendo sincronização.")
+                break
             continue
 
-    print(f"Sincronização de jogos futuros concluída. {jogos_adicionados} novos jogos adicionados.")
+    if not silent_fail:
+        if consecutive_errors >= max_consecutive_errors:
+            print(f"Sincronização de jogos futuros interrompida após {consecutive_errors} erros consecutivos.")
+            print("Possíveis causas: NBA API indisponível, temporada ainda não iniciada, ou problemas de rede.")
+        else:
+            print(f"Sincronização de jogos futuros concluída. {jogos_adicionados} novos jogos adicionados.")
+    
     return {"total_sincronizado": jogos_adicionados, "novos_adicionados": jogos_adicionados}
+
+def try_sync_future_games_startup(db: Session):
+    """
+    Versão silenciosa da sincronização de jogos futuros para ser usada no startup da aplicação.
+    Falha silenciosamente se houver problemas com a API da NBA.
+    """
+    try:
+        return sync_future_games(db, days_ahead=7, silent_fail=True)
+    except Exception as e:
+        # Log do erro em caso de falha completa, mas não interrompe a aplicação
+        print(f"Sincronização silenciosa de jogos futuros falhou: {e}")
+        return {"total_sincronizado": 0, "novos_adicionados": 0}
 
 def sync_player_awards(db: Session, jogador_id: int):
     """

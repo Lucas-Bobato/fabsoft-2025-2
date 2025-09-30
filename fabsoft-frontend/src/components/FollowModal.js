@@ -28,8 +28,8 @@ export default function FollowModal({ title, users, onClose, onFollowToggle }) {
           {users.length > 0 ? (
             users.map((user) => (
               <Flex key={user.id} justify="between" align="center">
-                <Link href={`/perfil/${user.username}`} passHref>
-                  <Flex as="a" gap="3" align="center">
+                <Link href={`/perfil/${user.username}`} style={{ textDecoration: "none" }}>
+                  <Flex gap="3" align="center" style={{ cursor: "pointer" }}>
                     <Avatar
                       src={
                         user.foto_perfil

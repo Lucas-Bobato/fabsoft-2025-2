@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from . import models, crud
 from .database import engine, SessionLocal
 from .routers import usuarios, ligas_times, jogadores, jogos, avaliacoes, interacoes, dashboard, admin, uploads, search
+from .services.nba_importer import try_sync_future_games_startup
 
 
 # Cria as tabelas no banco de dados
@@ -33,6 +34,25 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Evento de startup - sincronização silenciosa de jogos futuros
+@app.on_event("startup")
+async def startup_event():
+    """
+    Executa tarefas de inicialização da aplicação.
+    Tenta sincronizar jogos futuros silenciosamente.
+    """
+    db = SessionLocal()
+    try:
+        result = try_sync_future_games_startup(db)
+        if result["novos_adicionados"] > 0:
+            print(f"✅ Startup: {result['novos_adicionados']} jogos futuros sincronizados com sucesso!")
+        else:
+            print("ℹ️ Startup: Nenhum novo jogo futuro encontrado para sincronizar.")
+    except Exception as e:
+        print(f"⚠️ Startup: Sincronização de jogos futuros ignorada devido a erro: {e}")
+    finally:
+        db.close()
 
 # Inclui o roteador de usuários no aplicativo principal
 app.include_router(uploads.router)

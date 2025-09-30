@@ -187,8 +187,18 @@ class UsuarioBase(BaseModel):
     time_favorito_id: Optional[int] = None
 
 class UsuarioCreate(UsuarioBase):
-    senha: str
+    senha: str = Field(..., min_length=6, max_length=128, description="Password must be between 6 and 128 characters")
     foto_perfil: Optional[str] = None
+    
+    @field_validator('senha')
+    @classmethod
+    def validate_password(cls, v):
+        if len(v.encode('utf-8')) > 72:
+            # Warn but allow it, as we handle truncation in the security module
+            pass
+        if len(v) < 6:
+            raise ValueError('Password must be at least 6 characters long')
+        return v
 
 class Usuario(UsuarioBase):
     id: int
@@ -472,7 +482,7 @@ class TimeMaisAvaliado(BaseModel):
 class UserStats(BaseModel):
     total_avaliacoes: int
     media_geral: float
-    distribuicao_notas: dict[int, int]
+    distribuicao_notas: dict[float, int]
     mvp_mais_votado: Optional[JogadorMaisVotado] = None
     decepcao_mais_votada: Optional[JogadorMaisVotado] = None
     time_mais_avaliado: Optional[TimeMaisAvaliado] = None

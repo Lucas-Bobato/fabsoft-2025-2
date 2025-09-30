@@ -110,7 +110,6 @@ export default function HomePage() {
     { key: "esta_semana", label: "Esta semana" },
     { key: "ultimos_3_dias", label: "Últimos 3 dias" },
     { key: "ontem", label: "Ontem" },
-    { key: "tournament", label: "Tournament" },
   ];
 
   return (

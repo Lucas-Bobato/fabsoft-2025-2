@@ -1266,21 +1266,36 @@ def get_user_stats(db: Session, user_id: int, start_date: Optional[date] = None,
 
     total_avaliacoes = len(avaliacoes)
     if total_avaliacoes == 0:
+        # Distribuição de notas com intervalos de 0.5
+        distribuicao_notas = {}
+        for i in [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]:
+            distribuicao_notas[i] = 0
+        
         return schemas.UserStats(
-            total_avaliacoes=0, 
-            media_geral=0.0, 
-            distribuicao_notas={i: 0 for i in range(1, 6)},
+            total_avaliacoes=0,
+            media_geral=0.0,
+            distribuicao_notas=distribuicao_notas,
             mvp_mais_votado=None,
-            decepcao_mais_votada=None
+            decepcao_mais_votada=None,
+            time_mais_avaliado=None,
+            time_melhor_avaliado=None,
+            time_pior_avaliado=None,
+            time_melhor_ataque=None,
+            time_melhor_defesa=None
         )
 
     soma_notas = sum(a.nota_geral for a in avaliacoes)
     media_geral = round(soma_notas / total_avaliacoes, 2)
 
-    distribuicao = {i: 0 for i in range(1, 6)}
+    # Distribuição de notas com intervalos de 0.5
+    distribuicao = {}
+    for i in [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]:
+        distribuicao[i] = 0
+    
     for a in avaliacoes:
-        nota_arredondada = int(round(a.nota_geral))
-        if 1 <= nota_arredondada <= 5:
+        # Arredonda para o intervalo de 0.5 mais próximo
+        nota_arredondada = round(a.nota_geral * 2) / 2
+        if 0.5 <= nota_arredondada <= 5:
             distribuicao[nota_arredondada] += 1
 
     # Encontra o MVP mais votado pelo usuário
