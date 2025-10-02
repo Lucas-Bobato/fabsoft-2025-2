@@ -8,16 +8,13 @@ class Settings(BaseSettings):
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
 
-    # --- Optional Mail Settings ---
-    mail_username: Optional[str] = None
-    mail_password: Optional[str] = None
-    mail_from: Optional[str] = None
-    mail_port: Optional[int] = None
-    mail_server: Optional[str] = None
-    mail_starttls: Optional[bool] = None
-    mail_ssl_tls: Optional[bool] = None
+    # --- Cloudflare R2 Settings ---
+    R2_ACCOUNT_ID: str
+    R2_ACCESS_KEY_ID: str
+    R2_SECRET_ACCESS_KEY: str
+    R2_BUCKET_NAME: str
+    R2_PUBLIC_URL: str
 
-    # This will read the .env file and ignore any extra variables
     model_config = SettingsConfigDict(env_file=".env", extra='ignore')
 
 settings = Settings()
