@@ -1,0 +1,18 @@
+# Git
+.git
+.gitignore
+
+# Ambientes virtuais
+.venv
+venv
+env
+
+# Caches do Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Ficheiros de teste e DB local
+.pytest_cache
+test.db

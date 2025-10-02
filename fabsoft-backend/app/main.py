@@ -33,8 +33,6 @@ app.add_middleware(
     allow_headers=["*"],  # Permite todos os cabeçalhos
 )
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
 # Evento de startup - sincronização silenciosa de jogos futuros
 @app.on_event("startup")
 async def startup_event():
