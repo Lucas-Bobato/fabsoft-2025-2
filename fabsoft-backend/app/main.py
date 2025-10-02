@@ -7,7 +7,6 @@ from .routers import usuarios, ligas_times, jogadores, jogos, avaliacoes, intera
 from .services.nba_importer import try_sync_future_games_startup
 
 # --- FUNÇÃO DE BACKGROUND PARA SINCRONIZAÇÃO ---
-# (Esta parte continua igual)
 def run_startup_sync(db_session):
     try:
         result = try_sync_future_games_startup(db_session)
@@ -42,16 +41,16 @@ db_temp = SessionLocal()
 crud.popular_conquistas(db_temp)
 db_temp.close()
 
-# --- ATUALIZAÇÃO DA INSTÂNCIA DO FASTAPI ---
 app = FastAPI(
     title="SlamTalk API",
     description="A API para a plataforma de avaliação de jogos de basquete.",
     version="0.2.0",
-    lifespan=lifespan  # Adiciona o gerenciador de ciclo de vida aqui
+    lifespan=lifespan
 )
 
 origins = [
     "http://localhost:3000",
+    "https://slamtalk-backend.onrender.com"
 ]
 
 app.add_middleware(
