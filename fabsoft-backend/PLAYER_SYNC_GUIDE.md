@@ -44,7 +44,7 @@ Endpoint `/admin/sync-all-players-teams` agora tem:
 #### 1️⃣ Execute o batch sync múltiplas vezes (10 jogadores por vez)
 ```bash
 # Via cURL ou Postman
-POST https://slamtalk-api.onrender.com/admin/sync-all-players-teams?limit=10
+POST https://slamtalk-backend.onrender.com/admin/sync-all-players-teams?limit=10
 
 Headers:
   Authorization: Bearer {seu_token_admin}
@@ -78,7 +78,7 @@ Crie um script Python para executar automaticamente:
 import requests
 import time
 
-API_URL = "https://slamtalk-api.onrender.com"
+API_URL = "https://slamtalk-backend.onrender.com"
 TOKEN = "seu_token_admin_aqui"
 
 headers = {"Authorization": f"Bearer {TOKEN}"}

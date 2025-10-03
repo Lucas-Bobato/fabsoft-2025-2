@@ -31,7 +31,7 @@ Implementamos **sincronização assíncrona em lotes** com:
 ### Opção 1: Via Script Python (Recomendado)
 ```bash
 cd fabsoft-backend
-python sync_players.py --url https://slamtalk-api.onrender.com --token SEU_TOKEN
+python sync_players.py --url https://slamtalk-backend.onrender.com --token SEU_TOKEN
 ```
 
 **Resultado**: Sincroniza todos os 571 jogadores automaticamente (~30-60 min)
@@ -39,7 +39,7 @@ python sync_players.py --url https://slamtalk-api.onrender.com --token SEU_TOKEN
 ### Opção 2: Via API Manualmente
 ```bash
 # Execute 57x (571 jogadores / 10 por lote)
-POST https://slamtalk-api.onrender.com/admin/sync-all-players-teams?limit=10
+POST https://slamtalk-backend.onrender.com/admin/sync-all-players-teams?limit=10
 
 Authorization: Bearer SEU_TOKEN
 ```
