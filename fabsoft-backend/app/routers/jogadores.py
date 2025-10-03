@@ -23,12 +23,30 @@ def read_jogadores(
     "/{jogador_slug}/details",
     response_model=schemas.JogadorDetails,
     summary="Obter perfil detalhado de um jogador",
-    description="Retorna o perfil completo de um jogador, incluindo dados biográficos, conquistas e médias de estatísticas por temporada."
+    description="Retorna o perfil completo de um jogador, incluindo dados biográficos, conquistas e médias de estatísticas por temporada. Busca detalhes da NBA API automaticamente se não existirem."
 )
 def read_jogador_details(
     jogador_slug: str = Path(..., description="O slug do jogador a ser consultado."),
     db: Session = Depends(get_db)
 ):
+    # Primeiro, tenta buscar o jogador
+    jogador = crud.get_jogador_by_slug(db, jogador_slug=jogador_slug)
+    if not jogador:
+        raise HTTPException(status_code=404, detail="Jogador não encontrado")
+    
+    # Se o jogador não tem detalhes (posicao é None), busca da NBA API
+    if jogador.posicao is None and jogador.api_id:
+        print(f"Buscando detalhes sob demanda para {jogador.nome}...")
+        from ..services import nba_importer
+        try:
+            nba_importer.sync_player_details_by_id(db, jogador_id=jogador.id)
+            # Recarrega o jogador com os novos detalhes
+            db.refresh(jogador)
+        except Exception as e:
+            print(f"Erro ao buscar detalhes do jogador {jogador.nome}: {e}")
+            # Continua mesmo com erro - mostra dados básicos
+    
+    # Agora busca os detalhes completos
     jogador_details = crud.get_jogador_details(db, jogador_slug=jogador_slug)
     if jogador_details is None:
         raise HTTPException(status_code=404, detail="Jogador não encontrado")

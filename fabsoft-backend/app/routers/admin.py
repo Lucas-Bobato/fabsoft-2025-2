@@ -267,3 +267,67 @@ def fix_player_slugs_endpoint(
         "jogadores_atualizados": count,
         "total_sem_slug": len(jogadores_sem_slug)
     }
+
+@router.post("/sync-all-players-teams")
+def sync_all_players_teams_endpoint(
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: schemas.Usuario = Depends(get_current_user)
+):
+    """
+    Sincroniza o time atual de todos os jogadores ativos (busca detalhes da NBA API).
+    
+    ATENÇÃO: Esta operação é LENTA pois faz 1 requisição à NBA API por jogador.
+    Use o parâmetro 'limit' para processar em lotes menores.
+    
+    Parâmetros:
+    - limit: Número máximo de jogadores a processar (padrão: 100)
+    
+    Retorna:
+    - jogadores_processados: Total de jogadores processados
+    - times_atualizados: Jogadores com time atualizado
+    - erros: Jogadores que falharam
+    """
+    from .. import models
+    
+    # Busca jogadores sem time ou sem detalhes
+    jogadores_sem_time = db.query(models.Jogador).filter(
+        (models.Jogador.time_atual_id == None) | (models.Jogador.posicao == None)
+    ).limit(limit).all()
+    
+    if not jogadores_sem_time:
+        return {
+            "message": "Todos os jogadores já possuem time e detalhes",
+            "jogadores_processados": 0,
+            "times_atualizados": 0,
+            "erros": 0
+        }
+    
+    processados = 0
+    atualizados = 0
+    erros = 0
+    
+    print(f"Iniciando sincronização de times para {len(jogadores_sem_time)} jogadores...")
+    
+    for i, jogador in enumerate(jogadores_sem_time):
+        try:
+            if (i + 1) % 10 == 0:
+                print(f"Progresso: {i + 1}/{len(jogadores_sem_time)} jogadores...")
+            
+            resultado = nba_importer.sync_player_details_by_id(db, jogador_id=jogador.id)
+            processados += 1
+            
+            if resultado and resultado.time_atual_id:
+                atualizados += 1
+                
+        except Exception as e:
+            print(f"Erro ao processar jogador {jogador.nome}: {e}")
+            erros += 1
+            continue
+    
+    return {
+        "message": f"Sincronização concluída!",
+        "jogadores_processados": processados,
+        "times_atualizados": atualizados,
+        "erros": erros
+    }

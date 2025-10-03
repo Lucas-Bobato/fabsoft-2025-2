@@ -260,8 +260,14 @@ def sync_player_details_by_id(db: Session, jogador_id: int):
         altura_cm = _convert_height_to_cm(details.get('HEIGHT'))
         peso_kg = _convert_weight_to_kg(details.get('WEIGHT'))
         nacionalidade = details.get('COUNTRY')
+        
+        # Busca o time atual do jogador (se disponível na API)
+        team_id = details.get('TEAM_ID')
+        time_local = None
+        if team_id and team_id != 0:  # 0 = sem time
+            time_local = crud.get_time_by_api_id(db, api_id=team_id)
 
-        # Atualiza os detalhes do jogador
+        # Atualiza os detalhes do jogador (incluindo time atual)
         crud.update_jogador_details(
             db,
             jogador_id=db_jogador.id,
@@ -274,6 +280,12 @@ def sync_player_details_by_id(db: Session, jogador_id: int):
             peso=peso_kg,
             nacionalidade=nacionalidade
         )
+        
+        # Atualiza o time atual separadamente (se encontrado)
+        if time_local:
+            db_jogador.time_atual_id = time_local.id
+            db.commit()
+            db.refresh(db_jogador)
         
         print(f"  -> Detalhes atualizados com sucesso!")
         return db_jogador
