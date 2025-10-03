@@ -25,11 +25,9 @@ async def upload_profile_picture(file: UploadFile = File(...)):
             body=file.file,
             options={'access': 'public'}
         )
-
-        # A variável 'blob' contém um dicionário com o URL, pathname, etc.
         public_url = blob['url']
-
     except Exception as e:
+        print(f"ERRO DETALHADO DO BLOB: {e}")
         raise HTTPException(status_code=500, detail=f"Erro ao fazer upload do ficheiro: {str(e)}")
     finally:
         file.file.close()

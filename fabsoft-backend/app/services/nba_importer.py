@@ -36,31 +36,13 @@ def _convert_weight_to_kg(weight_lbs: str) -> Optional[float]:
 def sync_nba_players(db: Session):
     print("Iniciando a sincronização de jogadores da NBA em lotes...")
     
-    # Adicionando headers para simular um navegador
-    nba_api_headers = {
-        'Host': 'stats.nba.com',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Referer': 'https://www.nba.com/',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'x-nba-stats-origin': 'stats',
-        'x-nba-stats-token': 'true'
-    }
-
     player_data = None
     max_retries = 3
     
     # Busca a lista completa de jogadores (isto é rápido e não costuma falhar)
     print("Buscando a lista completa de jogadores da API...")
     try:
-        player_data_endpoint = commonallplayers.CommonAllPlayers(
-            is_only_current_season=1,
-            timeout=120,
-            headers=nba_api_headers
-        )
-        
+        player_data_endpoint = commonallplayers.CommonAllPlayers(is_only_current_season=1, timeout=60)
         player_data = player_data_endpoint.get_data_frames()[0]
         print(f" -> Lista de {len(player_data)} jogadores recebida com sucesso!")
     except Exception as e:
@@ -90,8 +72,7 @@ def sync_nba_players(db: Session):
                 try:
                     player_info_df = commonplayerinfo.CommonPlayerInfo(
                         player_id=player_summary['PERSON_ID'],
-                        timeout=120,
-                        headers=nba_api_headers
+                        timeout=60
                     ).get_data_frames()
                     break
                 except Exception as e:
@@ -121,6 +102,7 @@ def sync_nba_players(db: Session):
             altura_cm = _convert_height_to_cm(details.get('HEIGHT'))
             peso_kg = _convert_weight_to_kg(details.get('WEIGHT'))
             nacionalidade = details.get('COUNTRY')
+            # ---------------------------------
 
             if not db_jogador:
                 time_local = crud.get_time_by_api_id(db, api_id=player_summary['TEAM_ID'])
