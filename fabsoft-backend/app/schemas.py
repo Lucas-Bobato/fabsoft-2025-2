@@ -53,7 +53,8 @@ class JogadorBase(BaseModel):
     numero_camisa: Optional[int] = None
     posicao: Optional[str] = None
     foto_url: Optional[str] = None
-    time_atual_id: int
+    time_atual_id: Optional[int] = None
+    status: Optional[str] = "ativo"
 
 class JogadorCreate(JogadorBase):
     pass

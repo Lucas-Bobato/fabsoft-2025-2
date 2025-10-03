@@ -126,26 +126,28 @@ def update_player_sync_timestamp():
 
 def sync_nba_players(db: Session, force: bool = False):
     """
-    Sincroniza jogadores da NBA usando dados ESTÁTICOS (sem requisições HTTP).
+    Sincroniza jogadores ATIVOS da NBA usando dados ESTÁTICOS (sem requisições HTTP).
+    Usa get_active_players() que retorna apenas jogadores com status ativo.
     Sincroniza apenas 1 vez por semana, a menos que force=True.
     
     Args:
         db: Sessão do banco de dados
         force: Se True, força a sincronização mesmo se recente
     """
-    print("Iniciando a sincronização de jogadores da NBA...")
+    print("Iniciando a sincronização de jogadores ATIVOS da NBA...")
     
     # Verifica se deve sincronizar
     if not force and not should_sync_players(db):
         return {"total_sincronizado": 0, "novos_adicionados": 0, "pulado": True}
     
     # Usa dados ESTÁTICOS da nba_api (sem requisição HTTP - instantâneo!)
-    print("Buscando lista de jogadores (dados estáticos - sem requisição HTTP)...")
+    print("Buscando lista de jogadores ATIVOS (dados estáticos - sem requisição HTTP)...")
     
     try:
         # Esta função usa dados embutidos na biblioteca, não faz requisição HTTP
-        all_players = players.get_players()
-        print(f" -> Lista de {len(all_players)} jogadores obtida com sucesso (dados estáticos)!")
+        # get_active_players() retorna apenas jogadores com is_active=True
+        all_players = players.get_active_players()
+        print(f" -> Lista de {len(all_players)} jogadores ATIVOS obtida com sucesso (dados estáticos)!")
     except Exception as e:
         print(f"ERRO: Não foi possível obter lista estática de jogadores: {e}")
         return {"total_sincronizado": 0, "novos_adicionados": 0}
@@ -154,9 +156,9 @@ def sync_nba_players(db: Session, force: bool = False):
     jogadores_atualizados = 0
     total_jogadores = len(all_players)
     
-    print(f"Processando {total_jogadores} jogadores (MODO RÁPIDO - apenas dados básicos)...")
+    print(f"Processando {total_jogadores} jogadores ATIVOS (MODO RÁPIDO - apenas dados básicos)...")
     
-    # Itera sobre os jogadores dos dados estáticos
+    # Itera sobre os jogadores dos dados estáticos (todos são ativos)
     for i, player in enumerate(all_players):
         # Log a cada 100 jogadores para não poluir o console
         if i % 100 == 0 or i == total_jogadores - 1:
@@ -174,33 +176,30 @@ def sync_nba_players(db: Session, force: bool = False):
             # Cria jogador com dados básicos (dados estáticos não têm detalhes completos)
             foto_url = f"https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/{player['id']}.png"
             
-            # Dados estáticos têm: id, full_name, first_name, last_name, is_active
+            # Dados estáticos de get_active_players() têm: id, full_name, first_name, last_name, is_active=True
             db_jogador = crud.create_jogador(db, jogador=schemas.JogadorCreate(
                 api_id=player['id'],
                 nome=player['full_name'],
                 nome_normalizado=player['full_name'].lower(),
                 time_atual_id=time_local.id if time_local else None,
                 foto_url=foto_url,
-                status='ativo' if player.get('is_active', False) else 'inativo'
+                status='ativo'  # Todos os jogadores de get_active_players() são ativos
             ))
             jogadores_adicionados += 1
         else:
-            # Atualiza apenas o status de ativo/inativo
-            if player.get('is_active', False) and db_jogador.status != 'ativo':
+            # Atualiza o status para ativo (caso estivesse marcado como inativo)
+            if db_jogador.status != 'ativo':
                 db_jogador.status = 'ativo'
-                db.commit()
-                jogadores_atualizados += 1
-            elif not player.get('is_active', False) and db_jogador.status == 'ativo':
-                db_jogador.status = 'inativo'
                 db.commit()
                 jogadores_atualizados += 1
 
     # Atualiza timestamp da sincronização
     update_player_sync_timestamp()
 
-    print(f"\n✅ Sincronização RÁPIDA de jogadores concluída!")
-    print(f"   - {jogadores_adicionados} novos jogadores adicionados")
+    print(f"\n✅ Sincronização de jogadores ATIVOS concluída!")
+    print(f"   - {jogadores_adicionados} novos jogadores ativos adicionados")
     print(f"   - {jogadores_atualizados} jogadores atualizados")
+    print(f"   - Total de jogadores ativos sincronizados: {total_jogadores}")
     print(f"   - Próxima sincronização: em 7 dias")
     
     return {
