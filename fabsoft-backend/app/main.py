@@ -50,7 +50,8 @@ app = FastAPI(
 
 origins = [
     "http://localhost:3000",
-    "https://slamtalk-backend.onrender.com"
+    "https://slamtalk-backend.onrender.com",
+    "https://fabsoft-2025-2.vercel.app/"
 ]
 
 app.add_middleware(
