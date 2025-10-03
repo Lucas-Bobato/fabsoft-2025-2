@@ -21,13 +21,12 @@ async def upload_profile_picture(file: UploadFile = File(...)):
 
     try:
         blob = put(
-            pathname=unique_filename,
+            path=unique_filename,
             body=file.file,
             options={'access': 'public'}
         )
         public_url = blob['url']
     except Exception as e:
-        print(f"ERRO DETALHADO DO BLOB: {e}")
         raise HTTPException(status_code=500, detail=f"Erro ao fazer upload do ficheiro: {str(e)}")
     finally:
         file.file.close()

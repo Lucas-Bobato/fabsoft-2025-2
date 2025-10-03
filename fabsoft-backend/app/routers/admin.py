@@ -5,6 +5,7 @@ from ..services import nba_importer
 from ..routers.usuarios import get_current_user
 from .. import schemas
 from ..schemas import SyncAwardsResponse, SyncAllAwardsResponse, SyncChampionshipsResponse, SyncAllChampionshipsResponse, SyncCareerStatsResponse, SyncAllCareerStatsResponse
+from ..scheduler import get_scheduler_status, sync_players_job, sync_future_games_job
 
 router = APIRouter(
     prefix="/admin",
@@ -25,14 +26,54 @@ def sync_teams_endpoint(
 
 @router.post("/sync-players", response_model=schemas.SyncResponse)
 def sync_players_endpoint(
+    force: bool = False,
     db: Session = Depends(get_db),
     current_user: schemas.Usuario = Depends(get_current_user)
 ):
     """
     Endpoint para acionar a sincronização de jogadores da NBA.
+    
+    Esta sincronização usa dados ESTÁTICOS (sem requisições HTTP) e é INSTANTÂNEA.
+    Por padrão, sincroniza apenas 1 vez por semana automaticamente.
+    
+    Parâmetros:
+    - force: Se True, força a sincronização mesmo se já foi feita recentemente
+    
+    Retorna:
+    - total_sincronizado: Total de jogadores processados
+    - novos_adicionados: Novos jogadores adicionados ao banco
+    - pulado: True se a sincronização foi pulada por ser recente
     """
-    resultado = nba_importer.sync_nba_players(db)
+    resultado = nba_importer.sync_nba_players(db, force=force)
     return resultado
+
+@router.post("/sync-player-details/{jogador_id}")
+def sync_player_details_endpoint(
+    jogador_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.Usuario = Depends(get_current_user)
+):
+    """
+    Endpoint para buscar detalhes completos de um jogador específico via API.
+    
+    Esta operação FAZ requisição HTTP à NBA API e busca:
+    - Altura, peso, posição
+    - Data de nascimento, ano de draft
+    - Nacionalidade, número da camisa
+    
+    Use sob demanda quando precisar de detalhes completos de um jogador específico.
+    """
+    resultado = nba_importer.sync_player_details_by_id(db, jogador_id=jogador_id)
+    
+    if resultado:
+        return {
+            "success": True,
+            "message": f"Detalhes do jogador {resultado.nome} atualizados com sucesso",
+            "jogador": resultado
+        }
+    else:
+        raise HTTPException(status_code=404, detail="Jogador não encontrado ou erro ao buscar detalhes")
+
 
 @router.post("/sync-games/{season}", response_model=schemas.SyncResponse)
 def sync_games_endpoint(
@@ -135,3 +176,53 @@ def sync_all_career_stats_endpoint(
     """
     resultado = nba_importer.sync_all_players_career_stats(db, limit=limit)
     return resultado
+
+@router.get("/scheduler/status")
+def get_scheduler_status_endpoint(
+    current_user: schemas.Usuario = Depends(get_current_user)
+):
+    """
+    Retorna o status atual do scheduler de jobs agendados.
+    
+    Mostra:
+    - Se o scheduler está rodando
+    - Lista de jobs configurados
+    - Próxima execução de cada job
+    """
+    return get_scheduler_status()
+
+@router.post("/scheduler/run-sync-players")
+def run_sync_players_manually(
+    current_user: schemas.Usuario = Depends(get_current_user)
+):
+    """
+    Executa manualmente o job de sincronização de jogadores.
+    
+    Útil para testar ou forçar uma sincronização fora do horário agendado.
+    """
+    try:
+        sync_players_job()
+        return {
+            "success": True,
+            "message": "Job de sincronização de jogadores executado com sucesso"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao executar job: {str(e)}")
+
+@router.post("/scheduler/run-sync-future-games")
+def run_sync_future_games_manually(
+    current_user: schemas.Usuario = Depends(get_current_user)
+):
+    """
+    Executa manualmente o job de sincronização de jogos futuros.
+    
+    Útil para testar ou forçar uma sincronização fora do horário agendado.
+    """
+    try:
+        sync_future_games_job()
+        return {
+            "success": True,
+            "message": "Job de sincronização de jogos futuros executado com sucesso"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao executar job: {str(e)}")

@@ -13,4 +13,7 @@ __pycache__/
 *.db
 *.db-journal
 
+# Arquivos de controle de sincronização
+data/.last_player_sync
+
 /static

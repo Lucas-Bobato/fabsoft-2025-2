@@ -1,38 +1,26 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from . import models, crud
 from .database import engine, SessionLocal
 from .routers import usuarios, ligas_times, jogadores, jogos, avaliacoes, interacoes, dashboard, admin, uploads, search
-from .services.nba_importer import try_sync_future_games_startup
-
-# --- FUNÇÃO DE BACKGROUND PARA SINCRONIZAÇÃO ---
-def run_startup_sync(db_session):
-    try:
-        result = try_sync_future_games_startup(db_session)
-        if result["novos_adicionados"] > 0:
-            print(f"✅ Startup BG Task: {result['novos_adicionados']} jogos futuros sincronizados com sucesso!")
-        else:
-            print("ℹ️ Startup BG Task: Nenhum novo jogo futuro encontrado para sincronizar.")
-    except Exception as e:
-        print(f"⚠️ Startup BG Task: Sincronização de jogos futuros ignorada devido a erro: {e}")
-    finally:
-        db_session.close()
+from .scheduler import start_scheduler, shutdown_scheduler
 
 # --- NOVO GERENCIADOR DE CICLO DE VIDA (LIFESPAN) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Código a ser executado na inicialização
-    print("🚀 Aplicação iniciada. Adicionando tarefa de sincronização em segundo plano.")
-    background_tasks = BackgroundTasks()
-    db = SessionLocal()
-    background_tasks.add_task(run_startup_sync, db)
+    print("🚀 Aplicação iniciada.")
+    
+    # Inicia o scheduler de jobs agendados
+    start_scheduler()
     
     # Libera a aplicação para começar a rodar
     yield
     
-    # Código a ser executado no encerramento (se necessário)
-    print("👋 Encerrando a aplicação.")
+    # Código a ser executado no encerramento
+    print("👋 Encerrando a aplicação...")
+    shutdown_scheduler()
 
 # Cria as tabelas no banco de dados
 models.Base.metadata.create_all(bind=engine)
