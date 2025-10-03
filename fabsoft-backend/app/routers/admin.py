@@ -270,25 +270,34 @@ def fix_player_slugs_endpoint(
 
 @router.post("/sync-all-players-teams")
 def sync_all_players_teams_endpoint(
-    limit: int = 100,
+    limit: int = 10,  # Reduzido para 10 (mais seguro em produção)
+    skip_on_timeout: bool = True,  # Novo parâmetro para pular jogadores com timeout
     db: Session = Depends(get_db),
     current_user: schemas.Usuario = Depends(get_current_user)
 ):
     """
     Sincroniza o time atual de todos os jogadores ativos (busca detalhes da NBA API).
     
-    ATENÇÃO: Esta operação é LENTA pois faz 1 requisição à NBA API por jogador.
-    Use o parâmetro 'limit' para processar em lotes menores.
+    ATENÇÃO: Esta operação é LENTA (~3-30s por jogador devido a rate limiting e timeouts).
+    Use o parâmetro 'limit' para processar em lotes pequenos e executar múltiplas vezes.
     
     Parâmetros:
-    - limit: Número máximo de jogadores a processar (padrão: 100)
+    - limit: Número máximo de jogadores a processar (padrão: 10, máximo recomendado: 20)
+    - skip_on_timeout: Se True, pula jogadores com timeout e continua (padrão: True)
     
     Retorna:
     - jogadores_processados: Total de jogadores processados
     - times_atualizados: Jogadores com time atualizado
-    - erros: Jogadores que falharam
+    - erros: Jogadores que falharam (timeouts se skip_on_timeout=True)
+    
+    RECOMENDAÇÃO: Execute este endpoint múltiplas vezes com limit=10 ao invés de 1x com limit=100
     """
     from .. import models
+    import time
+    
+    # Limita a 20 jogadores por requisição (proteção contra timeout de conexão)
+    if limit > 20:
+        limit = 20
     
     # Busca jogadores sem time ou sem detalhes
     jogadores_sem_time = db.query(models.Jogador).filter(
@@ -300,34 +309,68 @@ def sync_all_players_teams_endpoint(
             "message": "Todos os jogadores já possuem time e detalhes",
             "jogadores_processados": 0,
             "times_atualizados": 0,
-            "erros": 0
+            "erros": 0,
+            "remaining": 0
         }
     
     processados = 0
     atualizados = 0
     erros = 0
+    erros_detalhes = []
     
     print(f"Iniciando sincronização de times para {len(jogadores_sem_time)} jogadores...")
     
     for i, jogador in enumerate(jogadores_sem_time):
         try:
-            if (i + 1) % 10 == 0:
-                print(f"Progresso: {i + 1}/{len(jogadores_sem_time)} jogadores...")
+            print(f"[{i + 1}/{len(jogadores_sem_time)}] Processando {jogador.nome}...")
             
-            resultado = nba_importer.sync_player_details_by_id(db, jogador_id=jogador.id)
-            processados += 1
+            # Usa uma nova sessão para cada jogador (evita timeout de conexão longa)
+            from ..database import SessionLocal
+            db_temp = SessionLocal()
             
-            if resultado and resultado.time_atual_id:
-                atualizados += 1
+            try:
+                resultado = nba_importer.sync_player_details_by_id(db_temp, jogador_id=jogador.id)
+                db_temp.commit()  # Commit imediato após cada jogador
+                processados += 1
                 
+                # Verifica se atualizou o time
+                db_temp.refresh(jogador)
+                if jogador.time_atual_id:
+                    atualizados += 1
+                    print(f"  ✓ Time atualizado com sucesso")
+                else:
+                    print(f"  ⚠ Sem time atual (free agent ou aposentado)")
+                    
+            finally:
+                db_temp.close()
+            
         except Exception as e:
-            print(f"Erro ao processar jogador {jogador.nome}: {e}")
-            erros += 1
-            continue
+            erro_msg = str(e)
+            print(f"  ✗ Erro: {erro_msg}")
+            
+            # Se for timeout e skip_on_timeout=True, continua
+            if skip_on_timeout and ("timeout" in erro_msg.lower() or "timed out" in erro_msg.lower()):
+                erros += 1
+                erros_detalhes.append(f"{jogador.nome}: timeout")
+                continue
+            else:
+                # Outros erros ou skip_on_timeout=False: para a execução
+                erros += 1
+                erros_detalhes.append(f"{jogador.nome}: {erro_msg[:100]}")
+                if not skip_on_timeout:
+                    break
+    
+    # Conta quantos ainda faltam
+    remaining = db.query(models.Jogador).filter(
+        (models.Jogador.time_atual_id == None) | (models.Jogador.posicao == None)
+    ).count()
     
     return {
-        "message": f"Sincronização concluída!",
+        "message": f"Sincronização concluída! {remaining} jogadores restantes.",
         "jogadores_processados": processados,
         "times_atualizados": atualizados,
-        "erros": erros
+        "erros": erros,
+        "erros_detalhes": erros_detalhes,
+        "remaining": remaining,
+        "recomendacao": f"Execute novamente com limit={limit} para processar os restantes" if remaining > 0 else "Sincronização completa!"
     }

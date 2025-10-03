@@ -34,19 +34,11 @@ def read_jogador_details(
     if not jogador:
         raise HTTPException(status_code=404, detail="Jogador não encontrado")
     
-    # Se o jogador não tem detalhes (posicao é None), busca da NBA API
-    if jogador.posicao is None and jogador.api_id:
-        print(f"Buscando detalhes sob demanda para {jogador.nome}...")
-        from ..services import nba_importer
-        try:
-            nba_importer.sync_player_details_by_id(db, jogador_id=jogador.id)
-            # Recarrega o jogador com os novos detalhes
-            db.refresh(jogador)
-        except Exception as e:
-            print(f"Erro ao buscar detalhes do jogador {jogador.nome}: {e}")
-            # Continua mesmo com erro - mostra dados básicos
+    # REMOVIDO: Sincronização sob demanda causa timeout em produção (PostgreSQL)
+    # Os detalhes devem ser populados via batch sync (/admin/sync-all-players-teams)
+    # ou aguardar sincronização agendada semanal
     
-    # Agora busca os detalhes completos
+    # Busca os detalhes completos (pode estar incompleto se não sincronizado)
     jogador_details = crud.get_jogador_details(db, jogador_slug=jogador_slug)
     if jogador_details is None:
         raise HTTPException(status_code=404, detail="Jogador não encontrado")

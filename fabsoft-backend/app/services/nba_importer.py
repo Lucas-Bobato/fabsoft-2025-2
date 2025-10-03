@@ -212,6 +212,9 @@ def sync_player_details_by_id(db: Session, jogador_id: int):
     """
     Busca detalhes completos de um jogador específico via API (altura, peso, etc).
     Use esta função sob demanda quando precisar de detalhes completos de um jogador.
+    
+    IMPORTANTE: Esta função pode levar ~2-15s por jogador (rate limiting + possíveis timeouts).
+    Não use em rotas HTTP síncronas - use apenas em batch jobs ou background tasks.
     """
     db_jogador = db.query(models.Jogador).filter(models.Jogador.id == jogador_id).first()
     if not db_jogador or not db_jogador.api_id:
@@ -220,7 +223,8 @@ def sync_player_details_by_id(db: Session, jogador_id: int):
     
     print(f"Buscando detalhes completos para {db_jogador.nome} (API ID: {db_jogador.api_id})...")
     
-    max_retries = 3
+    # REDUZIDO: 2 tentativas ao invés de 3 (fail faster em produção)
+    max_retries = 2
     player_info_df = None
     
     try:
@@ -235,10 +239,11 @@ def sync_player_details_by_id(db: Session, jogador_id: int):
                 break
             except Exception as e:
                 if attempt < max_retries - 1:
-                    wait_time = (attempt + 1) * 5
-                    print(f"  -> Timeout na tentativa {attempt + 1}. Aguardando {wait_time}s...")
+                    wait_time = 3  # REDUZIDO: 3s fixos ao invés de exponencial (5s, 10s, 15s)
+                    print(f"  -> Timeout na tentativa {attempt + 1}/{max_retries}. Aguardando {wait_time}s...")
                     time.sleep(wait_time)
                 else:
+                    print(f"  -> Falha após {max_retries} tentativas. Pulando jogador.")
                     raise e
 
         if not player_info_df or player_info_df[0].empty:
