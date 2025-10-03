@@ -203,7 +203,7 @@ def sync_nba_players(db: Session, force: bool = False):
     print(f"   - Próxima sincronização: em 7 dias")
     
     return {
-        "total_sincronizado": total_jogadores, 
+        "total_sincronizado": total_jogadores,
         "novos_adicionados": jogadores_adicionados,
         "atualizados": jogadores_atualizados
     }
@@ -391,7 +391,9 @@ def sync_nba_games_v2(db: Session, season: str):
                             )
                         else:
                             # Fallback para BoxScoreSummaryV2 se placar não estiver disponível
-                            summary_df = boxscoresummaryv2.BoxScoreSummaryV2(game_id=game_id, timeout=60).get_data_frames()
+                            # Rate limiting antes de chamada à API
+                            time.sleep(0.6)
+                            summary_df = boxscoresummaryv2.BoxScoreSummaryV2(game_id=game_id, timeout=120).get_data_frames()
                             
                             if summary_df and len(summary_df) > 5 and not summary_df[0].empty and not summary_df[5].empty:
                                 game_summary = summary_df[0].iloc[0]
@@ -412,6 +414,8 @@ def sync_nba_games_v2(db: Session, season: str):
                         # Busca estatísticas dos jogadores (usa método modernizado)
                         player_stats_df = None
                         try:
+                            # Rate limiting antes de chamada à API
+                            time.sleep(0.6)
                             player_stats_df = boxscoretraditionalv3.BoxScoreTraditionalV3(
                                 game_id=game_id,
                                 start_period=1,
@@ -419,12 +423,14 @@ def sync_nba_games_v2(db: Session, season: str):
                                 start_range=0,
                                 end_range=0,
                                 range_type=0,
-                                timeout=60
+                                timeout=120  # Aumentado de 60 para 120 segundos
                             ).get_data_frames()[0]
                             print(f"    -> Usando BoxScoreTraditionalV3 para jogo {game_id}")
                         except Exception as v3_error:
                             print(f"    -> BoxScoreTraditionalV3 falhou, usando V2: {v3_error}")
-                            player_stats_df = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=60).get_data_frames()[0]
+                            # Rate limiting antes do fallback
+                            time.sleep(0.6)
+                            player_stats_df = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=120).get_data_frames()[0]
                         
                         # Processa estatísticas dos jogadores
                         for index, p_stat in player_stats_df.iterrows():
@@ -475,7 +481,10 @@ def sync_nba_games(db: Session, season: str):
     """
     print(f"Iniciando a sincronização de jogos da temporada {season} (método legacy)...")
     
-    game_finder = leaguegamefinder.LeagueGameFinder(season_nullable=season, timeout=60)
+    # Rate limiting antes de chamada à API
+    time.sleep(0.6)
+    
+    game_finder = leaguegamefinder.LeagueGameFinder(season_nullable=season, timeout=120)
     games_df = game_finder.get_data_frames()[0]
     
     print(f"Total de registros de jogos encontrados na API: {len(games_df)}")
@@ -611,11 +620,14 @@ def _get_games_from_schedule_v2(season: str = None, silent_fail: bool = False):
         if not silent_fail:
             print(f"    -> Buscando jogos via ScheduleLeagueV2 para temporada {season}...")
         
+        # Rate limiting antes de chamada à API
+        time.sleep(0.6)
+        
         # Usa o novo endpoint ScheduleLeagueV2
         schedule = scheduleleaguev2.ScheduleLeagueV2(
             league_id="00",  # NBA
             season=season,
-            timeout=30
+            timeout=120  # Aumentado de 30 para 120 segundos
         )
         
         games_df = schedule.get_data_frames()[0]  # season_games
@@ -689,10 +701,13 @@ def _get_scoreboard_data_safely(date_str: str):
         else:  # Janeiro a junho = temporada anterior
             season = f"{date_obj.year - 1}-{str(date_obj.year)[-2:]}"
         
+        # Rate limiting antes de chamada à API
+        time.sleep(0.6)
+        
         # Busca jogos da temporada
         game_finder = leaguegamefinder.LeagueGameFinder(
             season_nullable=season,
-            timeout=30
+            timeout=120  # Aumentado de 30 para 120 segundos
         )
         games_df = game_finder.get_data_frames()[0]
         
@@ -952,10 +967,13 @@ def _get_future_games_from_league_finder(db: Session, days_ahead: int = 30, sile
         if not silent_fail:
             print(f"Buscando jogos da temporada {season}...")
         
+        # Rate limiting antes de chamada à API
+        time.sleep(0.6)
+        
         # Busca todos os jogos da temporada
         game_finder = leaguegamefinder.LeagueGameFinder(
             season_nullable=season,
-            timeout=60
+            timeout=120  # Aumentado de 60 para 120 segundos
         )
         all_games = game_finder.get_data_frames()[0]
         
@@ -1246,7 +1264,7 @@ def sync_player_awards(db: Session, jogador_id: int):
     print(f"Buscando prémios para {db_jogador.nome} (API ID: {db_jogador.api_id})...")
     try:
         time.sleep(1.1) # Aumentar a pausa para segurança
-        awards_endpoint = playerawards.PlayerAwards(player_id=db_jogador.api_id, timeout=60)
+        awards_endpoint = playerawards.PlayerAwards(player_id=db_jogador.api_id, timeout=120)  # Aumentado de 60 para 120
         awards_df = awards_endpoint.get_data_frames()[0]
         
         premios_adicionados = 0
@@ -1309,7 +1327,7 @@ def sync_team_championships(db: Session, time_id: int):
     print(f"Buscando títulos para {db_time.nome} (API ID: {db_time.api_id})...")
     try:
         time.sleep(1.1)
-        details_endpoint = teamdetails.TeamDetails(team_id=db_time.api_id, timeout=60)
+        details_endpoint = teamdetails.TeamDetails(team_id=db_time.api_id, timeout=120)  # Aumentado de 60 para 120
         championships_df = details_endpoint.team_awards_championships.get_data_frame()
         
         titulos_adicionados = 0

@@ -68,7 +68,7 @@ class JogadorCreateComDetails(JogadorBase):
     nacionalidade: Optional[str] = None
 class Jogador(JogadorBase):
     id: int
-    slug: str
+    slug: Optional[str] = None
     time_atual: Optional[TimeSimple] = None
     model_config = {"from_attributes": True}
     

@@ -226,3 +226,44 @@ def run_sync_future_games_manually(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao executar job: {str(e)}")
+
+@router.post("/fix-player-slugs")
+def fix_player_slugs_endpoint(
+    db: Session = Depends(get_db),
+    current_user: schemas.Usuario = Depends(get_current_user)
+):
+    """
+    Corrige os slugs de todos os jogadores que não possuem slug.
+    
+    Útil para corrigir dados de jogadores adicionados antes da correção do bug.
+    """
+    from .. import models, crud
+    from ..utils import generate_slug
+    
+    # Busca todos os jogadores sem slug
+    jogadores_sem_slug = db.query(models.Jogador).filter(models.Jogador.slug == None).all()
+    
+    if not jogadores_sem_slug:
+        return {
+            "success": True,
+            "message": "Todos os jogadores já possuem slug",
+            "jogadores_atualizados": 0
+        }
+    
+    count = 0
+    for jogador in jogadores_sem_slug:
+        try:
+            jogador.slug = generate_slug(jogador.nome_normalizado)
+            count += 1
+        except Exception as e:
+            print(f"Erro ao gerar slug para {jogador.nome}: {e}")
+            continue
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"{count} jogadores tiveram seus slugs corrigidos",
+        "jogadores_atualizados": count,
+        "total_sem_slug": len(jogadores_sem_slug)
+    }
