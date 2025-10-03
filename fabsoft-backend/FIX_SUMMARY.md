@@ -233,5 +233,5 @@ A sincronização semanal (Domingos 3h) **NÃO popula detalhes**:
 
 ---
 
-**Documentação Completa**: Ver `PLAYER_SYNC_GUIDE.md`  
+**Documentação Completa**: Ver `PLAYER_SYNC_GUIDE.md` 
 **Script de Sincronização**: Ver `sync_players.py`
