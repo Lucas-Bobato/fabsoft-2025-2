@@ -50,13 +50,14 @@ app = FastAPI(
 
 origins = [
     "http://localhost:3000",
-    "https://slamtalk-backend.onrender.com",
-    "https://fabsoft-2025-2.vercel.app/"
 ]
+
+vercel_regex = r"https://.*\.vercel\.app"
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=vercel_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
