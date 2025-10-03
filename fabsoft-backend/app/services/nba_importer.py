@@ -63,7 +63,7 @@ def _convert_weight_to_kg(weight_lbs: str) -> Optional[float]:
 def should_sync_players(db: Session) -> bool:
     """
     Verifica se deve sincronizar jogadores baseado na última sincronização.
-    Sincroniza apenas 1 vez por semana para evitar timeouts e rate limiting.
+    Sincroniza apenas 1 vez por mês para evitar timeouts e rate limiting.
     """
     from datetime import datetime, timedelta
     
@@ -94,7 +94,7 @@ def should_sync_players(db: Session) -> bool:
                 last_sync = datetime.fromisoformat(last_sync_str)
                 days_since_sync = (datetime.now() - last_sync).days
                 
-                if days_since_sync < 7:
+                if days_since_sync < 30:  # Alterado de 7 para 30 dias (1 mês)
                     print(f"Última sincronização de jogadores há {days_since_sync} dias. Pulando sincronização.")
                     return False
                 else:
@@ -126,86 +126,203 @@ def update_player_sync_timestamp():
 
 def sync_nba_players(db: Session, force: bool = False):
     """
-    Sincroniza jogadores ATIVOS da NBA usando dados ESTÁTICOS (sem requisições HTTP).
-    Usa get_active_players() que retorna apenas jogadores com status ativo.
-    Sincroniza apenas 1 vez por semana, a menos que force=True.
+    Sincroniza jogadores ATIVOS da NBA com TODOS os dados completos.
+    Busca informações detalhadas via API: nascimento, draft, físico, etc.
+    Sincroniza apenas 1 vez por mês, a menos que force=True.
     
     Args:
         db: Sessão do banco de dados
         force: Se True, força a sincronização mesmo se recente
     """
-    print("Iniciando a sincronização de jogadores ATIVOS da NBA...")
+    print("Iniciando a sincronização COMPLETA de jogadores ATIVOS da NBA...")
     
     # Verifica se deve sincronizar
     if not force and not should_sync_players(db):
         return {"total_sincronizado": 0, "novos_adicionados": 0, "pulado": True}
     
     # Usa dados ESTÁTICOS da nba_api (sem requisição HTTP - instantâneo!)
-    print("Buscando lista de jogadores ATIVOS (dados estáticos - sem requisição HTTP)...")
+    print("Buscando lista de jogadores ATIVOS (dados estáticos)...")
     
     try:
         # Esta função usa dados embutidos na biblioteca, não faz requisição HTTP
         # get_active_players() retorna apenas jogadores com is_active=True
         all_players = players.get_active_players()
-        print(f" -> Lista de {len(all_players)} jogadores ATIVOS obtida com sucesso (dados estáticos)!")
+        print(f" -> Lista de {len(all_players)} jogadores ATIVOS obtida com sucesso!")
     except Exception as e:
         print(f"ERRO: Não foi possível obter lista estática de jogadores: {e}")
         return {"total_sincronizado": 0, "novos_adicionados": 0}
 
     jogadores_adicionados = 0
     jogadores_atualizados = 0
+    jogadores_com_erro = 0
     total_jogadores = len(all_players)
     
-    print(f"Processando {total_jogadores} jogadores ATIVOS (MODO RÁPIDO - apenas dados básicos)...")
+    print(f"Processando {total_jogadores} jogadores ATIVOS com DADOS COMPLETOS...")
+    print("⚠️  Isso pode levar ~30-90 minutos devido ao rate limiting (0.6s por jogador)")
     
     # Itera sobre os jogadores dos dados estáticos (todos são ativos)
     for i, player in enumerate(all_players):
-        # Log a cada 100 jogadores para não poluir o console
-        if i % 100 == 0 or i == total_jogadores - 1:
-            print(f"Progresso: {i+1}/{total_jogadores} jogadores processados...")
+        # Log a cada 50 jogadores para acompanhar progresso
+        if i % 50 == 0 or i == total_jogadores - 1:
+            print(f"Progresso: {i+1}/{total_jogadores} jogadores processados... ({jogadores_adicionados} novos, {jogadores_atualizados} atualizados, {jogadores_com_erro} erros)")
         
         # Verifica se o jogador já existe no banco
         db_jogador = crud.get_jogador_by_api_id(db, api_id=player['id'])
         
-        if not db_jogador:
-            # Busca o time atual (se disponível nos dados estáticos)
-            time_local = None
-            if 'team_id' in player and player['team_id']:
-                time_local = crud.get_time_by_api_id(db, api_id=player['team_id'])
+        # Rate limiting obrigatório antes de cada chamada à API
+        time.sleep(0.6)
+        
+        # Busca detalhes COMPLETOS do jogador via API
+        try:
+            player_info_df = commonplayerinfo.CommonPlayerInfo(
+                player_id=player['id'],
+                timeout=120
+            ).get_data_frames()
             
-            # Cria jogador com dados básicos (dados estáticos não têm detalhes completos)
+            if not player_info_df or player_info_df[0].empty:
+                print(f"  -> Sem detalhes para jogador ID {player['id']} ({player['full_name']})")
+                jogadores_com_erro += 1
+                continue
+            
+            details = player_info_df[0].iloc[0]
+            
+            # === EXTRAÇÃO DE DADOS COMPLETOS ===
+            
+            # Data de nascimento
+            data_nascimento_str = details.get('BIRTHDATE')
+            data_nascimento = None
+            if data_nascimento_str:
+                try:
+                    data_nascimento = datetime.strptime(data_nascimento_str, '%Y-%m-%dT%H:%M:%S').date()
+                except:
+                    pass
+            
+            # Anos de experiência
+            anos_experiencia = details.get('SEASON_EXP')
+            if anos_experiencia == 'R':  # Rookie
+                anos_experiencia = 0
+            elif anos_experiencia:
+                try:
+                    anos_experiencia = int(anos_experiencia)
+                except:
+                    anos_experiencia = None
+            
+            # Draft (ano e posição)
+            draft_year_str = details.get('DRAFT_YEAR')
+            draft_round_str = details.get('DRAFT_ROUND')
+            draft_number_str = details.get('DRAFT_NUMBER')
+            
+            ano_draft = None
+            posicao_draft = None
+            
+            if draft_year_str and draft_year_str != 'Undrafted':
+                try:
+                    ano_draft = int(draft_year_str)
+                except:
+                    pass
+            
+            # Monta string da posição do draft (ex: "1ª rodada, 3ª escolha")
+            if draft_round_str and draft_number_str and draft_round_str != 'Undrafted':
+                try:
+                    round_num = int(draft_round_str.replace('R', ''))
+                    pick_num = int(draft_number_str)
+                    posicao_draft = f"{round_num}ª rodada, {pick_num}ª escolha"
+                except:
+                    pass
+            
+            # Se não foi draftado
+            if not ano_draft or draft_year_str == 'Undrafted':
+                posicao_draft = "Não Draftado"
+            
+            # Posição em quadra
+            posicao = details.get('POSITION')
+            
+            # Número da camisa
+            numero_camisa_str = details.get('JERSEY')
+            numero_camisa = None
+            if numero_camisa_str and numero_camisa_str.isdigit():
+                numero_camisa = int(numero_camisa_str)
+            
+            # Altura e peso
+            altura_cm = _convert_height_to_cm(details.get('HEIGHT'))
+            peso_kg = _convert_weight_to_kg(details.get('WEIGHT'))
+            
+            # Nacionalidade
+            nacionalidade = details.get('COUNTRY')
+            
+            # Time atual do jogador
+            team_id = details.get('TEAM_ID')
+            time_local = None
+            if team_id and team_id != 0:  # 0 = sem time
+                time_local = crud.get_time_by_api_id(db, api_id=team_id)
+            
+            # Foto do jogador
             foto_url = f"https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/{player['id']}.png"
             
-            # Dados estáticos de get_active_players() têm: id, full_name, first_name, last_name, is_active=True
-            db_jogador = crud.create_jogador(db, jogador=schemas.JogadorCreate(
-                api_id=player['id'],
-                nome=player['full_name'],
-                nome_normalizado=player['full_name'].lower(),
-                time_atual_id=time_local.id if time_local else None,
-                foto_url=foto_url,
-                status='ativo'  # Todos os jogadores de get_active_players() são ativos
-            ))
-            jogadores_adicionados += 1
-        else:
-            # Atualiza o status para ativo (caso estivesse marcado como inativo)
-            if db_jogador.status != 'ativo':
+            # === CRIAÇÃO OU ATUALIZAÇÃO NO BANCO ===
+            
+            if not db_jogador:
+                # Cria novo jogador com TODOS os dados
+                db_jogador = crud.create_jogador(db, jogador=schemas.JogadorCreate(
+                    api_id=player['id'],
+                    nome=player['full_name'],
+                    nome_normalizado=player['full_name'].lower(),
+                    time_atual_id=time_local.id if time_local else None,
+                    foto_url=foto_url,
+                    status='ativo',
+                    posicao=posicao,
+                    numero_camisa=numero_camisa,
+                    data_nascimento=data_nascimento,
+                    ano_draft=ano_draft,
+                    anos_experiencia=anos_experiencia,
+                    altura=altura_cm,
+                    peso=peso_kg,
+                    nacionalidade=nacionalidade
+                ))
+                jogadores_adicionados += 1
+            else:
+                # Atualiza jogador existente com dados completos
+                crud.update_jogador_details(
+                    db,
+                    jogador_id=db_jogador.id,
+                    posicao=posicao,
+                    numero_camisa=numero_camisa,
+                    data_nascimento=data_nascimento,
+                    ano_draft=ano_draft,
+                    anos_experiencia=anos_experiencia,
+                    altura=altura_cm,
+                    peso=peso_kg,
+                    nacionalidade=nacionalidade
+                )
+                
+                # Atualiza time atual e status
+                db_jogador.time_atual_id = time_local.id if time_local else None
                 db_jogador.status = 'ativo'
                 db.commit()
+                db.refresh(db_jogador)
+                
                 jogadores_atualizados += 1
+        
+        except Exception as e:
+            print(f"  -> ERRO ao buscar detalhes do jogador {player['full_name']} (ID {player['id']}): {e}")
+            jogadores_com_erro += 1
+            continue
 
     # Atualiza timestamp da sincronização
     update_player_sync_timestamp()
 
-    print(f"\n✅ Sincronização de jogadores ATIVOS concluída!")
-    print(f"   - {jogadores_adicionados} novos jogadores ativos adicionados")
+    print(f"\n✅ Sincronização COMPLETA de jogadores ATIVOS concluída!")
+    print(f"   - {jogadores_adicionados} novos jogadores adicionados")
     print(f"   - {jogadores_atualizados} jogadores atualizados")
+    print(f"   - {jogadores_com_erro} erros durante sincronização")
     print(f"   - Total de jogadores ativos sincronizados: {total_jogadores}")
-    print(f"   - Próxima sincronização: em 7 dias")
+    print(f"   - Próxima sincronização: em 1 mês")
     
     return {
         "total_sincronizado": total_jogadores,
         "novos_adicionados": jogadores_adicionados,
-        "atualizados": jogadores_atualizados
+        "atualizados": jogadores_atualizados,
+        "erros": jogadores_com_erro
     }
 
 def sync_player_details_by_id(db: Session, jogador_id: int):
