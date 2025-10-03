@@ -1,93 +1,146 @@
 """
-Sistema de Jobs Agendados para Sincronizações Automáticas.
+Sistema de Jobs Agendados - SlamTalk
 
-Este módulo configura tarefas agendadas para:
-- Sincronizar jogadores da NBA (1x por semana)
-- Sincronizar jogos futuros (1x a cada 24 horas)
+Jobs Configurados:
+1. sync-teams: 1x por ano (Agosto, dia 1 às 2h)
+2. sync-players + career-stats: 1x por mês (dia 1 às 3h)
+3. sync-future-games: 1x por dia (4h)
+4. sync-all-awards: 1x por semana (Domingos às 5h)
+5. sync-all-championships: 1x por ano (Agosto, dia 1 às 6h)
 """
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime
 from .database import SessionLocal
 from .services import nba_importer
 import logging
 
-# Configurar logging para o scheduler
+# Configurar logging
 logging.basicConfig()
 logging.getLogger('apscheduler').setLevel(logging.INFO)
 
-# Criar instância global do scheduler
+# Instância global do scheduler
 scheduler = BackgroundScheduler()
 
-def sync_players_job():
-    """
-    Job agendado para sincronizar jogadores da NBA.
-    Executa 1x por semana (domingos às 3h da manhã).
-    """
-    print("\n" + "="*60)
-    print(f"🔄 [SCHEDULED JOB] Iniciando sincronização semanal de jogadores - {datetime.now()}")
-    print("="*60)
+def sync_teams_job():
+    """Job: Sincronização de Times (1x por ano - Agosto)"""
+    print("\n" + "="*70)
+    print(f"🏀 [JOB] Sincronização de Times - {datetime.now()}")
+    print("="*70)
     
     db = SessionLocal()
     try:
-        # Força a sincronização (ignora o controle de 7 dias)
-        result = nba_importer.sync_nba_players(db, force=True)
-        
-        if result.get("pulado"):
-            print("ℹ️ [SCHEDULED JOB] Sincronização pulada (dados recentes)")
-        else:
-            print(f"✅ [SCHEDULED JOB] Sincronização de jogadores concluída!")
-            print(f"   - Total processado: {result.get('total_sincronizado', 0)}")
-            print(f"   - Novos adicionados: {result.get('novos_adicionados', 0)}")
-            print(f"   - Atualizados: {result.get('atualizados', 0)}")
+        result = nba_importer.sync_nba_teams(db)
+        print(f"✅ CONCLUÍDO: {result.get('total_sincronizado', 0)} times processados")
     except Exception as e:
-        print(f"❌ [SCHEDULED JOB] Erro na sincronização de jogadores: {e}")
+        print(f"❌ ERRO: {e}")
     finally:
         db.close()
-        print("="*60 + "\n")
+        print("="*70 + "\n")
+
+def sync_players_job():
+    """Job: Sincronização de Jogadores + Career Stats (1x por mês)"""
+    print("\n" + "="*70)
+    print(f"👥 [JOB] Sincronização de Jogadores - {datetime.now()}")
+    print("="*70)
+    
+    db = SessionLocal()
+    try:
+        # Sincroniza jogadores
+        result = nba_importer.sync_nba_players(db, force=True)
+        print(f"✅ Jogadores: {result.get('total_sincronizado', 0)} processados")
+        
+        # Sincroniza career stats automaticamente
+        if result.get('total_sincronizado', 0) > 0:
+            print("\n🔄 Sincronizando Career Stats...")
+            stats_result = nba_importer.sync_all_players_career_stats(
+                db, 
+                limit=result.get('total_sincronizado')
+            )
+            print(f"✅ Career Stats: {stats_result.get('jogadores_sucesso', 0)} jogadores")
+        
+    except Exception as e:
+        print(f"❌ ERRO: {e}")
+    finally:
+        db.close()
+        print("="*70 + "\n")
 
 def sync_future_games_job():
-    """
-    Job agendado para sincronizar jogos futuros da NBA.
-    Executa a cada 24 horas (diariamente às 4h da manhã).
-    """
-    print("\n" + "="*60)
-    print(f"🔄 [SCHEDULED JOB] Iniciando sincronização diária de jogos futuros - {datetime.now()}")
-    print("="*60)
+    """Job: Sincronização de Jogos Futuros (1x por dia)"""
+    print("\n" + "="*70)
+    print(f"📅 [JOB] Sincronização de Jogos Futuros - {datetime.now()}")
+    print("="*70)
     
     db = SessionLocal()
     try:
-        # Busca jogos dos próximos 30 dias
         result = nba_importer.sync_future_games(db, days_ahead=30, silent_fail=False)
-        
-        print(f"✅ [SCHEDULED JOB] Sincronização de jogos futuros concluída!")
-        print(f"   - Total processado: {result.get('total_sincronizado', 0)}")
-        print(f"   - Novos jogos adicionados: {result.get('novos_adicionados', 0)}")
+        print(f"✅ CONCLUÍDO: {result.get('total_sincronizado', 0)} jogos processados")
     except Exception as e:
-        print(f"❌ [SCHEDULED JOB] Erro na sincronização de jogos futuros: {e}")
+        print(f"❌ ERRO: {e}")
     finally:
         db.close()
-        print("="*60 + "\n")
+        print("="*70 + "\n")
+
+def sync_awards_job():
+    """Job: Sincronização de Prêmios (1x por semana)"""
+    print("\n" + "="*70)
+    print(f"🏆 [JOB] Sincronização de Prêmios - {datetime.now()}")
+    print("="*70)
+    
+    db = SessionLocal()
+    try:
+        result = nba_importer.sync_all_players_awards(db)
+        print(f"✅ CONCLUÍDO: {result.get('jogadores_sucesso', 0)} jogadores processados")
+    except Exception as e:
+        print(f"❌ ERRO: {e}")
+    finally:
+        db.close()
+        print("="*70 + "\n")
+
+def sync_championships_job():
+    """Job: Sincronização de Títulos (1x por ano - Agosto)"""
+    print("\n" + "="*70)
+    print(f"🏆 [JOB] Sincronização de Títulos - {datetime.now()}")
+    print("="*70)
+    
+    db = SessionLocal()
+    try:
+        result = nba_importer.sync_all_teams_championships(db)
+        print(f"✅ CONCLUÍDO: {result.get('times_sucesso', 0)} times processados")
+    except Exception as e:
+        print(f"❌ ERRO: {e}")
+    finally:
+        db.close()
+        print("="*70 + "\n")
 
 def start_scheduler():
-    """
-    Inicia o scheduler e registra todos os jobs agendados.
-    """
-    print("\n" + "🕐 Configurando jobs agendados...")
+    """Inicia o scheduler e registra todos os jobs."""
+    print("\n" + "="*70)
+    print("🕐 CONFIGURANDO JOBS AGENDADOS - SLAMTALK")
+    print("="*70)
     
-    # Job 1: Sincronização de jogadores (Domingos às 3h)
+    # Job 1: Sincronização de Times (Agosto, dia 1 às 2h)
     scheduler.add_job(
-        sync_players_job,
-        trigger=CronTrigger(day_of_week='sun', hour=3, minute=0),
-        id='sync_players_weekly',
-        name='Sincronização Semanal de Jogadores',
+        sync_teams_job,
+        trigger=CronTrigger(month=8, day=1, hour=2, minute=0),
+        id='sync_teams_yearly',
+        name='Sincronização Anual de Times',
         replace_existing=True
     )
-    print("   ✓ Job configurado: Sincronização de jogadores (Domingos 3:00 AM)")
+    print("✓ [1] Times: 1 Agosto 2:00 AM (1x/ano)")
     
-    # Job 2: Sincronização de jogos futuros (Diariamente às 4h)
+    # Job 2: Sincronização de Jogadores + Career Stats (dia 1 de cada mês às 3h)
+    scheduler.add_job(
+        sync_players_job,
+        trigger=CronTrigger(day=1, hour=3, minute=0),
+        id='sync_players_monthly',
+        name='Sincronização Mensal de Jogadores',
+        replace_existing=True
+    )
+    print("✓ [2] Jogadores + Career Stats: Todo dia 1 às 3:00 AM (1x/mês)")
+    
+    # Job 3: Sincronização de Jogos Futuros (diariamente às 4h)
     scheduler.add_job(
         sync_future_games_job,
         trigger=CronTrigger(hour=4, minute=0),
@@ -95,46 +148,52 @@ def start_scheduler():
         name='Sincronização Diária de Jogos Futuros',
         replace_existing=True
     )
-    print("   ✓ Job configurado: Sincronização de jogos futuros (Diariamente 4:00 AM)")
+    print("✓ [3] Jogos Futuros: Diariamente 4:00 AM (1x/dia)")
     
-    # Opcional: Para testes, você pode adicionar jobs com intervalo mais curto
-    # scheduler.add_job(
-    #     sync_future_games_job,
-    #     trigger=IntervalTrigger(hours=24),
-    #     id='sync_future_games_interval',
-    #     name='Sincronização de Jogos (24h)',
-    #     replace_existing=True
-    # )
+    # Job 4: Sincronização de Prêmios (domingos às 5h)
+    scheduler.add_job(
+        sync_awards_job,
+        trigger=CronTrigger(day_of_week='sun', hour=5, minute=0),
+        id='sync_awards_weekly',
+        name='Sincronização Semanal de Prêmios',
+        replace_existing=True
+    )
+    print("✓ [4] Prêmios: Domingos 5:00 AM (1x/semana)")
     
-    # Inicia o scheduler
+    # Job 5: Sincronização de Títulos (Agosto, dia 1 às 6h)
+    scheduler.add_job(
+        sync_championships_job,
+        trigger=CronTrigger(month=8, day=1, hour=6, minute=0),
+        id='sync_championships_yearly',
+        name='Sincronização Anual de Títulos',
+        replace_existing=True
+    )
+    print("✓ [5] Títulos: 1 Agosto 6:00 AM (1x/ano)")
+    
+    # Inicia scheduler
     scheduler.start()
-    print("   ✓ Scheduler iniciado com sucesso!")
-    print(f"   ℹ️ Próximos jobs agendados:")
+    print("\n✓ Scheduler iniciado com sucesso!")
     
-    # Lista os próximos jobs
+    # Mostra próximos runs
+    print("\n📅 Próximas execuções:")
     for job in scheduler.get_jobs():
         next_run = job.next_run_time
-        print(f"      - {job.name}: {next_run}")
+        if next_run:
+            print(f"   • {job.name}")
+            print(f"     └─ {next_run.strftime('%d/%m/%Y %H:%M:%S')}")
     
-    print()
+    print("="*70 + "\n")
 
 def shutdown_scheduler():
-    """
-    Encerra o scheduler de forma limpa.
-    """
+    """Encerra o scheduler."""
     print("🛑 Encerrando scheduler...")
     scheduler.shutdown()
-    print("   ✓ Scheduler encerrado.")
+    print("   ✓ Scheduler encerrado")
 
 def get_scheduler_status():
-    """
-    Retorna o status atual do scheduler e seus jobs.
-    """
+    """Retorna status do scheduler."""
     if not scheduler.running:
-        return {
-            "running": False,
-            "message": "Scheduler não está rodando"
-        }
+        return {"running": False, "message": "Scheduler não está rodando"}
     
     jobs_info = []
     for job in scheduler.get_jobs():
@@ -145,7 +204,4 @@ def get_scheduler_status():
             "trigger": str(job.trigger)
         })
     
-    return {
-        "running": True,
-        "jobs": jobs_info
-    }
+    return {"running": True, "jobs": jobs_info}

@@ -1,7 +1,5 @@
-# Altera esta linha
 FROM python:3.11-slim
 
-# O resto do ficheiro continua igual
 WORKDIR /app
 
 COPY requirements.txt requirements.txt
