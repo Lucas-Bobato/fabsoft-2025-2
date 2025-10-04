@@ -16,7 +16,20 @@ export default function Header() {
   const { user, isAuthenticated, logout } = useAuth();
 
   const getProfilePicUrl = () => {
-    return user?.foto_perfil || "/placeholder.png";
+    if (user && user.foto_perfil) {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+        if (!baseUrl) {
+          console.error("NEXT_PUBLIC_API_URL is not defined.");
+          return "/placeholder.png";
+        }
+        return new URL(user.foto_perfil, baseUrl).href;
+      } catch (error) {
+        console.error("Error constructing profile pic URL:", error);
+        return "/placeholder.png";
+      }
+    }
+    return "/placeholder.png";
   };
 
   const profilePicUrl = getProfilePicUrl();

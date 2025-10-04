@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from nba_api.stats.static import teams
 from nba_api.stats.endpoints import (
     commonallplayers, leaguegamefinder, boxscoresummaryv2, 
-    boxscoretraditionalv2, boxscoretraditionalv3, commonplayerinfo, 
+    boxscoretraditionalv2, boxscoretraditionalv3, commonplayerinfo,
     playerawards, teamdetails, scheduleleaguev2
 )
 from nba_api.stats.endpoints import scoreboardv2
@@ -33,88 +33,72 @@ def _convert_weight_to_kg(weight_lbs: str) -> Optional[float]:
         return None
     
 
-def sync_nba_players(db: Session):
-    print("Iniciando a sincronização de jogadores da NBA em lotes...")
-    
-    # Adicionando headers para simular um navegador
-    nba_api_headers = {
-        'Host': 'stats.nba.com',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/117.0',
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Referer': 'https://www.nba.com/',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'x-nba-stats-origin': 'stats',
-        'x-nba-stats-token': 'true'
-    }
+def sync_nba_players(db: Session, skip: int = 0):
+    """
+    Sincroniza os jogadores da NBA em lotes, com uma estratégia de retentativa
+    robusta (exponential backoff) e a capacidade de saltar jogadores já processados.
 
-    player_data = None
-    max_retries = 3
+    :param db: A sessão da base de dados.
+    :param skip: O número de jogadores a saltar no início (para retomar uma sincronização).
+    """
+    print(f"Iniciando a sincronização de jogadores da NBA em lotes (a começar do jogador #{skip + 1})...")
     
-    # Busca a lista completa de jogadores (isto é rápido e não costuma falhar)
+    player_data = None
+    max_retries = 5
+    
     print("Buscando a lista completa de jogadores da API...")
     try:
-        player_data_endpoint = commonallplayers.CommonAllPlayers(
-            is_only_current_season=1,
-            timeout=120,
-            headers=nba_api_headers
-        )
-        
+        player_data_endpoint = commonallplayers.CommonAllPlayers(is_only_current_season=1, timeout=60)
         player_data = player_data_endpoint.get_data_frames()[0]
         print(f" -> Lista de {len(player_data)} jogadores recebida com sucesso!")
     except Exception as e:
         print(f"ERRO CRÍTICO: Não foi possível buscar a lista de jogadores da NBA. Sincronização abortada. Erro: {e}")
-        return {"total_sincronizado": 0, "novos_adicionados": 0}
+        return {"total_sincronizado": 0, "novos_adicionados": 0, "jogadores_processados": 0}
 
     jogadores_adicionados = 0
     jogadores_atualizados = 0
     total_jogadores = len(player_data)
-    LOTE_TAMANHO = 600
-    PAUSA_MINUTOS = 1
+    jogadores_processados_nesta_execucao = 0
+    
+    if skip > 0:
+        player_data = player_data.iloc[skip:]
 
     for i, player_summary in player_data.iterrows():
-        if i > 0 and i % LOTE_TAMANHO == 0:
-            print(f"--- Lote de {LOTE_TAMANHO} jogadores processado. Pausando por {PAUSA_MINUTOS} minutos... ---")
-            time.sleep(PAUSA_MINUTOS * 60)
-            print(f"--- Pausa terminada. Retomando a sincronização... ---")
-
-        print(f"Processando jogador {i+1}/{total_jogadores}: {player_summary['DISPLAY_FIRST_LAST']}...")
+        print(f"Processando jogador {i + 1}/{total_jogadores}: {player_summary['DISPLAY_FIRST_LAST']}...")
         db_jogador = crud.get_jogador_by_api_id(db, api_id=player_summary['PERSON_ID'])
         
         try:
-            time.sleep(1.1)
-            
             player_info_df = None
             for attempt in range(max_retries):
                 try:
+                    # A pausa inicial antes de cada tentativa
+                    time.sleep(1.5 + attempt)
+
                     player_info_df = commonplayerinfo.CommonPlayerInfo(
                         player_id=player_summary['PERSON_ID'],
-                        timeout=120,
-                        headers=nba_api_headers
+                        timeout=60
                     ).get_data_frames()
                     break
                 except Exception as e:
                     if attempt < max_retries - 1:
-                        wait_time = (attempt + 1) * 5
-                        print(f"  -> Timeout na tentativa {attempt + 1}. A aguardar {wait_time}s...")
+                        # Implementação do recuo exponencial
+                        wait_time = 2 ** attempt  # 1, 2, 4, 8, 16 segundos...
+                        print(f"  -> Tentativa {attempt + 1} falhou. A aguardar {wait_time}s antes de tentar novamente... Erro: {e}")
                         time.sleep(wait_time)
                     else:
+                        print(f"ERRO FINAL após {max_retries} tentativas para o jogador ID {player_summary['PERSON_ID']}. A avançar...")
                         raise e
 
             if not player_info_df or player_info_df[0].empty:
-                print(f"  -> Não foram encontrados detalhes para o jogador.")
+                print(f"  -> Não foram encontrados detalhes para o jogador. A avançar.")
                 continue
             
             details = player_info_df[0].iloc[0]
-
             data_nascimento_str = details.get('BIRTHDATE')
             data_nascimento = datetime.strptime(data_nascimento_str, '%Y-%m-%dT%H:%M:%S').date() if data_nascimento_str else None
             anos_experiencia = details.get('SEASON_EXP')
-            
             draft_year_str = details.get('DRAFT_YEAR')
             ano_draft = int(draft_year_str) if draft_year_str and draft_year_str != 'Undrafted' else None
-
             posicao = details.get('POSITION')
             numero_camisa_str = details.get('JERSEY')
             numero_camisa = int(numero_camisa_str) if numero_camisa_str and numero_camisa_str.isdigit() else None
@@ -159,12 +143,15 @@ def sync_nba_players(db: Session):
                     nacionalidade=nacionalidade
                 )
                 jogadores_atualizados += 1
+            
+            jogadores_processados_nesta_execucao += 1
 
         except Exception as e:
-            print(f"ERRO FINAL ao processar jogador ID {player_summary['PERSON_ID']}: {e}. A avançar para o próximo.")
+            print(f"ERRO ao processar jogador ID {player_summary['PERSON_ID']}: {e}. A avançar para o próximo.")
+            continue
 
-    print(f"\nSincronização COMPLETA de todos os jogadores terminada. {jogadores_adicionados} novos jogadores adicionados, {jogadores_atualizados} atualizados.")
-    return {"total_sincronizado": total_jogadores, "novos_adicionados": jogadores_adicionados}
+    print(f"\nSincronização COMPLETA terminada. {jogadores_adicionados} novos jogadores adicionados, {jogadores_atualizados} atualizados.")
+    return {"total_sincronizado": total_jogadores, "novos_adicionados": jogadores_adicionados, "jogadores_processados": jogadores_processados_nesta_execucao}
 
 def safe_int(value):
     """Safely converts a value to an integer, handling None and NaN."""

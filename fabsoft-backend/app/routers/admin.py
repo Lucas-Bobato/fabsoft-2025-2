@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from ..dependencies import get_db
 from ..services import nba_importer
@@ -26,12 +26,13 @@ def sync_teams_endpoint(
 @router.post("/sync-players", response_model=schemas.SyncResponse)
 def sync_players_endpoint(
     db: Session = Depends(get_db),
-    current_user: schemas.Usuario = Depends(get_current_user)
+    current_user: schemas.Usuario = Depends(get_current_user),
+    skip: int = Query(0, description="Número de jogadores a saltar (para retomar sincronização).")
 ):
     """
     Endpoint para acionar a sincronização de jogadores da NBA.
     """
-    resultado = nba_importer.sync_nba_players(db)
+    resultado = nba_importer.sync_nba_players(db, skip=skip)
     return resultado
 
 @router.post("/sync-games/{season}", response_model=schemas.SyncResponse)
