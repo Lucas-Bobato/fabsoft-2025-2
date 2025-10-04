@@ -49,18 +49,39 @@ export default function HomePage() {
   const fetchPersonalizedFeed = async () => {
     try {
       const response = await api.get("/feed/para-voce");
-      setPersonalizedFeed(response.data);
+      // Verifica se a resposta contém uma lista (array)
+      if (Array.isArray(response.data)) {
+        setPersonalizedFeed(response.data);
+      } else {
+        // Se não for uma lista, define como lista vazia para não quebrar
+        setPersonalizedFeed([]);
+        console.error(
+          "A resposta da API para o feed personalizado não é uma lista:",
+          response.data
+        );
+      }
     } catch (error) {
       console.error("Erro ao buscar feed personalizado:", error);
+      // Em caso de erro, também garante que o estado seja uma lista vazia
+      setPersonalizedFeed([]);
     }
   };
 
   const fetchFollowingFeed = async () => {
     try {
       const response = await api.get("/feed/seguindo");
-      setFollowingFeed(response.data);
+      if (Array.isArray(response.data)) {
+        setFollowingFeed(response.data);
+      } else {
+        setFollowingFeed([]);
+        console.error(
+          "A resposta da API para o feed de seguidos não é uma lista:",
+          response.data
+        );
+      }
     } catch (error) {
       console.error("Erro ao buscar feed de seguidos:", error);
+      setFollowingFeed([]);
     }
   };
 

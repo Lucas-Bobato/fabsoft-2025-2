@@ -374,7 +374,7 @@ export default function ProfilePage() {
     : 1;
   const ratingColors = {
     0.5: "#ef4444",
-    1: "#f87171", 
+    1: "#f87171",
     1.5: "#fb7185",
     2: "#fb923c",
     2.5: "#f59e0b",
@@ -412,11 +412,7 @@ export default function ProfilePage() {
           <Flex align="center" gap="5">
             <Box position="relative">
               <Avatar
-                src={
-                  profile.foto_perfil
-                    ? `${process.env.NEXT_PUBLIC_API_URL}${profile.foto_perfil}`
-                    : "/placeholder.png"
-                }
+                src={getProfileImageUrl(profile.foto_perfil)}
                 fallback={profile.username[0]}
                 size="7"
                 radius="full"
@@ -594,7 +590,8 @@ export default function ProfilePage() {
                   <Flex direction="column" align="center" p="4" gap="2">
                     <Swords size={20} color="#F97316" />
                     <Text size="4" weight="bold">
-                      {stats.time_melhor_ataque?.media_ataque?.toFixed(2) || "0.00"}
+                      {stats.time_melhor_ataque?.media_ataque?.toFixed(2) ||
+                        "0.00"}
                     </Text>
                     <Flex align="center" gap="2">
                       {stats.time_melhor_ataque?.time?.logo_url && (
@@ -625,7 +622,8 @@ export default function ProfilePage() {
                   <Flex direction="column" align="center" p="4" gap="2">
                     <Shield size={20} color="var(--blue-9)" />
                     <Text size="4" weight="bold">
-                      {stats.time_melhor_defesa?.media_defesa?.toFixed(2) || "0.00"}
+                      {stats.time_melhor_defesa?.media_defesa?.toFixed(2) ||
+                        "0.00"}
                     </Text>
                     <Flex align="center" gap="2">
                       {stats.time_melhor_defesa?.time?.logo_url && (
@@ -670,26 +668,42 @@ export default function ProfilePage() {
                           radius="full"
                         />
                         <Box flex="1">
-                          <Link href={`/jogadores/${stats.mvp_mais_votado.jogador.slug}`}>
-                            <Text size="4" weight="bold" style={{ cursor: "pointer" }}>
+                          <Link
+                            href={`/jogadores/${stats.mvp_mais_votado.jogador.slug}`}
+                          >
+                            <Text
+                              size="4"
+                              weight="bold"
+                              style={{ cursor: "pointer" }}
+                            >
                               {stats.mvp_mais_votado.jogador.nome}
                             </Text>
                           </Link>
                           <Flex align="center" gap="2" mt="1">
-                            {stats.mvp_mais_votado.jogador.time_atual?.logo_url && (
+                            {stats.mvp_mais_votado.jogador.time_atual
+                              ?.logo_url && (
                               <Avatar
-                                src={stats.mvp_mais_votado.jogador.time_atual.logo_url}
+                                src={
+                                  stats.mvp_mais_votado.jogador.time_atual
+                                    .logo_url
+                                }
                                 fallback="T"
                                 size="1"
                                 radius="full"
                               />
                             )}
                             <Text size="2" color="gray">
-                              {stats.mvp_mais_votado.jogador.time_atual?.nome || 'Time'}
+                              {stats.mvp_mais_votado.jogador.time_atual?.nome ||
+                                "Time"}
                             </Text>
                           </Flex>
                         </Box>
-                        <Flex direction="column" align="center" justify="center" gap="1">
+                        <Flex
+                          direction="column"
+                          align="center"
+                          justify="center"
+                          gap="1"
+                        >
                           <Award size={20} color="var(--green-9)" />
                           <Text size="5" weight="bold">
                             {stats.mvp_mais_votado.votos} votos
@@ -721,40 +735,55 @@ export default function ProfilePage() {
                       border: "1px solid var(--red-6)",
                     }}
                   >
-                    {stats.decepcao_mais_votada && stats.decepcao_mais_votada.jogador ? (
+                    {stats.decepcao_mais_votada &&
+                    stats.decepcao_mais_votada.jogador ? (
                       <Flex align="center" p="4" gap="4">
                         <Avatar
                           src={
                             stats.decepcao_mais_votada.jogador.foto_url ||
                             "/placeholder.png"
                           }
-                          fallback={
-                            stats.decepcao_mais_votada.jogador.nome[0]
-                          }
+                          fallback={stats.decepcao_mais_votada.jogador.nome[0]}
                           size="5"
                           radius="full"
                         />
                         <Box flex="1">
-                          <Link href={`/jogadores/${stats.decepcao_mais_votada.jogador.slug}`}>
-                            <Text size="4" weight="bold" style={{ cursor: "pointer" }}>
+                          <Link
+                            href={`/jogadores/${stats.decepcao_mais_votada.jogador.slug}`}
+                          >
+                            <Text
+                              size="4"
+                              weight="bold"
+                              style={{ cursor: "pointer" }}
+                            >
                               {stats.decepcao_mais_votada.jogador.nome}
                             </Text>
                           </Link>
                           <Flex align="center" gap="2" mt="1">
-                            {stats.decepcao_mais_votada.jogador.time_atual?.logo_url && (
+                            {stats.decepcao_mais_votada.jogador.time_atual
+                              ?.logo_url && (
                               <Avatar
-                                src={stats.decepcao_mais_votada.jogador.time_atual.logo_url}
+                                src={
+                                  stats.decepcao_mais_votada.jogador.time_atual
+                                    .logo_url
+                                }
                                 fallback="T"
                                 size="1"
                                 radius="full"
                               />
                             )}
                             <Text size="2" color="gray">
-                              {stats.decepcao_mais_votada.jogador.time_atual?.nome || 'Time'}
+                              {stats.decepcao_mais_votada.jogador.time_atual
+                                ?.nome || "Time"}
                             </Text>
                           </Flex>
                         </Box>
-                        <Flex direction="column" align="center" justify="center" gap="1">
+                        <Flex
+                          direction="column"
+                          align="center"
+                          justify="center"
+                          gap="1"
+                        >
                           <ThumbsDown size={20} color="var(--red-9)" />
                           <Text size="5" weight="bold">
                             {stats.decepcao_mais_votada.votos} votos
@@ -846,28 +875,28 @@ export default function ProfilePage() {
                 className="hover:opacity-80 transition-opacity"
               >
                 <Card>
-                    <Flex justify="between" mb="2">
-                      <Text weight="bold" size="2">
-                        {review.jogo.time_visitante.sigla} @{" "}
-                        {review.jogo.time_casa.sigla}
-                      </Text>
-                      <Text size="1" color="gray">
-                        {new Date(review.data_avaliacao).toLocaleDateString(
-                          "pt-BR"
-                        )}
-                      </Text>
-                    </Flex>
-                    <Text as="p" size="2" color="gray" mb="2">
-                      Nota:{" "}
-                      <Text weight="bold" color="amber">
-                        {review.nota_geral.toFixed(1)}
-                      </Text>
+                  <Flex justify="between" mb="2">
+                    <Text weight="bold" size="2">
+                      {review.jogo.time_visitante.sigla} @{" "}
+                      {review.jogo.time_casa.sigla}
                     </Text>
-                    {review.resenha && (
-                      <Text as="p" size="2" trim="both" truncate>
-                        &quot;{review.resenha}&quot;
-                      </Text>
-                    )}
+                    <Text size="1" color="gray">
+                      {new Date(review.data_avaliacao).toLocaleDateString(
+                        "pt-BR"
+                      )}
+                    </Text>
+                  </Flex>
+                  <Text as="p" size="2" color="gray" mb="2">
+                    Nota:{" "}
+                    <Text weight="bold" color="amber">
+                      {review.nota_geral.toFixed(1)}
+                    </Text>
+                  </Text>
+                  {review.resenha && (
+                    <Text as="p" size="2" trim="both" truncate>
+                      &quot;{review.resenha}&quot;
+                    </Text>
+                  )}
                 </Card>
               </Link>
             ))}

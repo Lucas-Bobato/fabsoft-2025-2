@@ -2,7 +2,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from nba_api.stats.static import teams
 from nba_api.stats.endpoints import (
-    commonallplayers, leaguegamefinder, boxscoresummaryv2, 
+    commonallplayers, leaguegamefinder, boxscoresummaryv2,
     boxscoretraditionalv2, boxscoretraditionalv3, commonplayerinfo,
     playerawards, teamdetails, scheduleleaguev2
 )

@@ -23,11 +23,11 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
     time_favorito_id: user.time_favorito?.id || null,
   });
   const [newProfilePic, setNewProfilePic] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(
-    user.foto_perfil
-      ? `${process.env.NEXT_PUBLIC_API_URL}${user.foto_perfil}`
-      : "/placeholder.png"
-  );
+  const [previewUrl, setPreviewUrl] = useState(() => {
+    if (!user.foto_perfil) return "/placeholder.png";
+    if (user.foto_perfil.startsWith("http")) return user.foto_perfil;
+    return `${process.env.NEXT_PUBLIC_API_URL}${user.foto_perfil}`;
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e) => {

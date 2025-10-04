@@ -1,9 +1,10 @@
+import contextlib
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from . import models, crud
 from .database import engine, SessionLocal
 from .routers import usuarios, ligas_times, jogadores, jogos, avaliacoes, interacoes, dashboard, admin, uploads, search
-from .services.nba_importer import try_sync_future_games_startup
+from .scheduler import start_scheduler
 
 
 # Cria as tabelas no banco de dados
@@ -12,6 +13,11 @@ models.Base.metadata.create_all(bind=engine)
 db = SessionLocal()
 crud.popular_conquistas(db)
 db.close()
+
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    yield
 
 app = FastAPI(
     title="SlamTalk API",
