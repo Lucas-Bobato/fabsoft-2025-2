@@ -23,22 +23,12 @@ def read_jogadores(
     "/{jogador_slug}/details",
     response_model=schemas.JogadorDetails,
     summary="Obter perfil detalhado de um jogador",
-    description="Retorna o perfil completo de um jogador, incluindo dados biográficos, conquistas e médias de estatísticas por temporada. Busca detalhes da NBA API automaticamente se não existirem."
+    description="Retorna o perfil completo de um jogador, incluindo dados biográficos, conquistas e médias de estatísticas por temporada."
 )
 def read_jogador_details(
     jogador_slug: str = Path(..., description="O slug do jogador a ser consultado."),
     db: Session = Depends(get_db)
 ):
-    # Primeiro, tenta buscar o jogador
-    jogador = crud.get_jogador_by_slug(db, jogador_slug=jogador_slug)
-    if not jogador:
-        raise HTTPException(status_code=404, detail="Jogador não encontrado")
-    
-    # REMOVIDO: Sincronização sob demanda causa timeout em produção (PostgreSQL)
-    # Os detalhes devem ser populados via batch sync (/admin/sync-all-players-teams)
-    # ou aguardar sincronização agendada semanal
-    
-    # Busca os detalhes completos (pode estar incompleto se não sincronizado)
     jogador_details = crud.get_jogador_details(db, jogador_slug=jogador_slug)
     if jogador_details is None:
         raise HTTPException(status_code=404, detail="Jogador não encontrado")

@@ -194,9 +194,7 @@ def create_jogador_com_details(db: Session, jogador: schemas.JogadorCreateComDet
     return db_jogador
 
 def create_jogador(db: Session, jogador: schemas.JogadorCreate):
-    jogador_data = jogador.model_dump()
-    jogador_data["slug"] = generate_slug(jogador.nome_normalizado)
-    db_jogador = models.Jogador(**jogador_data)
+    db_jogador = models.Jogador(**jogador.model_dump())
     db.add(db_jogador)
     db.commit()
     db.refresh(db_jogador)

@@ -18,6 +18,4 @@ data/.last_player_sync
 
 /static
 
-CLEAN_SETUP.md
-
-.vscode/
+tests/

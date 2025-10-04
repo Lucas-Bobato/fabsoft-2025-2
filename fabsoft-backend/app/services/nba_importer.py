@@ -1,9 +1,9 @@
 from typing import Optional
 from sqlalchemy.orm import Session
-from nba_api.stats.static import teams, players
+from nba_api.stats.static import teams
 from nba_api.stats.endpoints import (
-    leaguegamefinder, boxscoresummaryv2, 
-    boxscoretraditionalv2, boxscoretraditionalv3, commonplayerinfo, 
+    commonallplayers, leaguegamefinder, boxscoresummaryv2, 
+    boxscoretraditionalv2, boxscoretraditionalv3, commonplayerinfo,
     playerawards, teamdetails, scheduleleaguev2
 )
 from nba_api.stats.endpoints import scoreboardv2
@@ -13,33 +13,6 @@ from .. import crud, schemas, models
 import math
 import time
 import re
-import pandas as pd
-
-# Configura headers para evitar bloqueios da NBA API
-# Fonte: https://github.com/swar/nba_api/issues/176
-
-def _configure_nba_api_headers():
-    """
-    Configura headers personalizados para a NBA API para evitar timeouts e bloqueios.
-    A NBA bloqueia requisições sem User-Agent apropriado.
-    """
-    from nba_api.stats.library.http import NBAStatsHTTP
-    
-    # Headers recomendados pela comunidade nba_api
-    NBAStatsHTTP.headers = {
-        'Host': 'stats.nba.com',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Referer': 'https://stats.nba.com/',
-        'x-nba-stats-origin': 'stats',
-        'x-nba-stats-token': 'true',
-    }
-
-# Configura headers na importação do módulo
-_configure_nba_api_headers()
 
 def _convert_height_to_cm(height_str: str) -> Optional[int]:
     if not height_str or '-' not in height_str:
@@ -60,228 +33,103 @@ def _convert_weight_to_kg(weight_lbs: str) -> Optional[float]:
         return None
     
 
-def should_sync_players(db: Session) -> bool:
+def sync_nba_players(db: Session, skip: int = 0):
     """
-    Verifica se deve sincronizar jogadores baseado na última sincronização.
-    Sincroniza apenas 1 vez por mês para evitar timeouts e rate limiting.
-    """
-    from datetime import datetime, timedelta
-    
-    # Verifica se existe algum jogador no banco
-    ultimo_jogador = db.query(models.Jogador).order_by(models.Jogador.id.desc()).first()
-    
-    if not ultimo_jogador:
-        print("Nenhum jogador encontrado no banco. Sincronização necessária.")
-        return True
-    
-    # Verifica a data de criação/atualização do último jogador
-    # Como não temos campo de data_sincronizacao, usamos uma heurística simples:
-    # Se há menos de 100 jogadores, provavelmente é um banco novo
-    total_jogadores = db.query(models.Jogador).count()
-    
-    if total_jogadores < 100:
-        print(f"Apenas {total_jogadores} jogadores no banco. Sincronização necessária.")
-        return True
-    
-    # Se chegou aqui, temos bastante jogadores. Podemos usar um arquivo de controle
-    import os
-    sync_control_file = "data/.last_player_sync"
-    
-    try:
-        if os.path.exists(sync_control_file):
-            with open(sync_control_file, 'r') as f:
-                last_sync_str = f.read().strip()
-                last_sync = datetime.fromisoformat(last_sync_str)
-                days_since_sync = (datetime.now() - last_sync).days
-                
-                if days_since_sync < 30:  # Alterado de 7 para 30 dias (1 mês)
-                    print(f"Última sincronização de jogadores há {days_since_sync} dias. Pulando sincronização.")
-                    return False
-                else:
-                    print(f"Última sincronização de jogadores há {days_since_sync} dias. Sincronização necessária.")
-                    return True
-        else:
-            print("Arquivo de controle de sincronização não encontrado. Sincronizando...")
-            return True
-    except Exception as e:
-        print(f"Erro ao verificar última sincronização: {e}. Sincronizando por precaução...")
-        return True
+    Sincroniza os jogadores da NBA em lotes, com uma estratégia de retentativa
+    robusta (exponential backoff) e a capacidade de saltar jogadores já processados.
 
-def update_player_sync_timestamp():
-    """Atualiza o timestamp da última sincronização de jogadores."""
-    import os
-    from datetime import datetime
-    
-    sync_control_file = "data/.last_player_sync"
-    
-    # Cria o diretório se não existir
-    os.makedirs(os.path.dirname(sync_control_file), exist_ok=True)
-    
-    try:
-        with open(sync_control_file, 'w') as f:
-            f.write(datetime.now().isoformat())
-        print(f"Timestamp de sincronização atualizado: {sync_control_file}")
-    except Exception as e:
-        print(f"Aviso: Não foi possível atualizar timestamp de sincronização: {e}")
-
-def sync_nba_players(db: Session, force: bool = False):
+    :param db: A sessão da base de dados.
+    :param skip: O número de jogadores a saltar no início (para retomar uma sincronização).
     """
-    Sincroniza jogadores ATIVOS da NBA com TODOS os dados completos.
-    Busca informações detalhadas via API: nascimento, draft, físico, etc.
-    Sincroniza apenas 1 vez por mês, a menos que force=True.
+    print(f"Iniciando a sincronização de jogadores da NBA em lotes (a começar do jogador #{skip + 1})...")
     
-    Args:
-        db: Sessão do banco de dados
-        force: Se True, força a sincronização mesmo se recente
-    """
-    print("Iniciando a sincronização COMPLETA de jogadores ATIVOS da NBA...")
+    player_data = None
+    max_retries = 5
     
-    # Verifica se deve sincronizar
-    if not force and not should_sync_players(db):
-        return {"total_sincronizado": 0, "novos_adicionados": 0, "pulado": True}
-    
-    # Usa dados ESTÁTICOS da nba_api (sem requisição HTTP - instantâneo!)
-    print("Buscando lista de jogadores ATIVOS (dados estáticos)...")
-    
+    print("Buscando a lista completa de jogadores da API...")
     try:
-        # Esta função usa dados embutidos na biblioteca, não faz requisição HTTP
-        # get_active_players() retorna apenas jogadores com is_active=True
-        all_players = players.get_active_players()
-        print(f" -> Lista de {len(all_players)} jogadores ATIVOS obtida com sucesso!")
+        player_data_endpoint = commonallplayers.CommonAllPlayers(is_only_current_season=1, timeout=60)
+        player_data = player_data_endpoint.get_data_frames()[0]
+        print(f" -> Lista de {len(player_data)} jogadores recebida com sucesso!")
     except Exception as e:
-        print(f"ERRO: Não foi possível obter lista estática de jogadores: {e}")
-        return {"total_sincronizado": 0, "novos_adicionados": 0}
+        print(f"ERRO CRÍTICO: Não foi possível buscar a lista de jogadores da NBA. Sincronização abortada. Erro: {e}")
+        return {"total_sincronizado": 0, "novos_adicionados": 0, "jogadores_processados": 0}
 
     jogadores_adicionados = 0
     jogadores_atualizados = 0
-    jogadores_com_erro = 0
-    total_jogadores = len(all_players)
+    total_jogadores = len(player_data)
+    jogadores_processados_nesta_execucao = 0
     
-    print(f"Processando {total_jogadores} jogadores ATIVOS com DADOS COMPLETOS...")
-    print("⚠️  Isso pode levar ~30-90 minutos devido ao rate limiting (0.6s por jogador)")
-    
-    # Itera sobre os jogadores dos dados estáticos (todos são ativos)
-    for i, player in enumerate(all_players):
-        # Log a cada 50 jogadores para acompanhar progresso
-        if i % 50 == 0 or i == total_jogadores - 1:
-            print(f"Progresso: {i+1}/{total_jogadores} jogadores processados... ({jogadores_adicionados} novos, {jogadores_atualizados} atualizados, {jogadores_com_erro} erros)")
+    if skip > 0:
+        player_data = player_data.iloc[skip:]
+
+    for i, player_summary in player_data.iterrows():
+        print(f"Processando jogador {i + 1}/{total_jogadores}: {player_summary['DISPLAY_FIRST_LAST']}...")
+        db_jogador = crud.get_jogador_by_api_id(db, api_id=player_summary['PERSON_ID'])
         
-        # Verifica se o jogador já existe no banco
-        db_jogador = crud.get_jogador_by_api_id(db, api_id=player['id'])
-        
-        # Rate limiting obrigatório antes de cada chamada à API
-        time.sleep(0.6)
-        
-        # Busca detalhes COMPLETOS do jogador via API
         try:
-            player_info_df = commonplayerinfo.CommonPlayerInfo(
-                player_id=player['id'],
-                timeout=120
-            ).get_data_frames()
-            
+            player_info_df = None
+            for attempt in range(max_retries):
+                try:
+                    # A pausa inicial antes de cada tentativa
+                    time.sleep(1.5 + attempt)
+
+                    player_info_df = commonplayerinfo.CommonPlayerInfo(
+                        player_id=player_summary['PERSON_ID'],
+                        timeout=60
+                    ).get_data_frames()
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        # Implementação do recuo exponencial
+                        wait_time = 2 ** attempt  # 1, 2, 4, 8, 16 segundos...
+                        print(f"  -> Tentativa {attempt + 1} falhou. A aguardar {wait_time}s antes de tentar novamente... Erro: {e}")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"ERRO FINAL após {max_retries} tentativas para o jogador ID {player_summary['PERSON_ID']}. A avançar...")
+                        raise e
+
             if not player_info_df or player_info_df[0].empty:
-                print(f"  -> Sem detalhes para jogador ID {player['id']} ({player['full_name']})")
-                jogadores_com_erro += 1
+                print(f"  -> Não foram encontrados detalhes para o jogador. A avançar.")
                 continue
             
             details = player_info_df[0].iloc[0]
-            
-            # === EXTRAÇÃO DE DADOS COMPLETOS ===
-            
-            # Data de nascimento
             data_nascimento_str = details.get('BIRTHDATE')
-            data_nascimento = None
-            if data_nascimento_str:
-                try:
-                    data_nascimento = datetime.strptime(data_nascimento_str, '%Y-%m-%dT%H:%M:%S').date()
-                except:
-                    pass
-            
-            # Anos de experiência
+            data_nascimento = datetime.strptime(data_nascimento_str, '%Y-%m-%dT%H:%M:%S').date() if data_nascimento_str else None
             anos_experiencia = details.get('SEASON_EXP')
-            if anos_experiencia == 'R':  # Rookie
-                anos_experiencia = 0
-            elif anos_experiencia:
-                try:
-                    anos_experiencia = int(anos_experiencia)
-                except:
-                    anos_experiencia = None
-            
-            # Draft (ano e posição)
             draft_year_str = details.get('DRAFT_YEAR')
-            draft_round_str = details.get('DRAFT_ROUND')
-            draft_number_str = details.get('DRAFT_NUMBER')
-            
-            ano_draft = None
-            posicao_draft = None
-            
-            if draft_year_str and draft_year_str != 'Undrafted':
-                try:
-                    ano_draft = int(draft_year_str)
-                except:
-                    pass
-            
-            # Monta string da posição do draft (ex: "1ª rodada, 3ª escolha")
-            if draft_round_str and draft_number_str and draft_round_str != 'Undrafted':
-                try:
-                    round_num = int(draft_round_str.replace('R', ''))
-                    pick_num = int(draft_number_str)
-                    posicao_draft = f"{round_num}ª rodada, {pick_num}ª escolha"
-                except:
-                    pass
-            
-            # Se não foi draftado
-            if not ano_draft or draft_year_str == 'Undrafted':
-                posicao_draft = "Não Draftado"
-            
-            # Posição em quadra
+            ano_draft = int(draft_year_str) if draft_year_str and draft_year_str != 'Undrafted' else None
             posicao = details.get('POSITION')
-            
-            # Número da camisa
             numero_camisa_str = details.get('JERSEY')
-            numero_camisa = None
-            if numero_camisa_str and numero_camisa_str.isdigit():
-                numero_camisa = int(numero_camisa_str)
-            
-            # Altura e peso
+            numero_camisa = int(numero_camisa_str) if numero_camisa_str and numero_camisa_str.isdigit() else None
             altura_cm = _convert_height_to_cm(details.get('HEIGHT'))
             peso_kg = _convert_weight_to_kg(details.get('WEIGHT'))
-            
-            # Nacionalidade
             nacionalidade = details.get('COUNTRY')
-            
-            # Time atual do jogador
-            team_id = details.get('TEAM_ID')
-            time_local = None
-            if team_id and team_id != 0:  # 0 = sem time
-                time_local = crud.get_time_by_api_id(db, api_id=team_id)
-            
-            # Foto do jogador
-            foto_url = f"https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/{player['id']}.png"
-            
-            # === CRIAÇÃO OU ATUALIZAÇÃO NO BANCO ===
-            
+
             if not db_jogador:
-                # Cria novo jogador com TODOS os dados
-                db_jogador = crud.create_jogador(db, jogador=schemas.JogadorCreate(
-                    api_id=player['id'],
-                    nome=player['full_name'],
-                    nome_normalizado=player['full_name'].lower(),
-                    time_atual_id=time_local.id if time_local else None,
-                    foto_url=foto_url,
-                    status='ativo',
-                    posicao=posicao,
-                    numero_camisa=numero_camisa,
-                    data_nascimento=data_nascimento,
-                    ano_draft=ano_draft,
-                    anos_experiencia=anos_experiencia,
-                    altura=altura_cm,
-                    peso=peso_kg,
-                    nacionalidade=nacionalidade
-                ))
-                jogadores_adicionados += 1
+                time_local = crud.get_time_by_api_id(db, api_id=player_summary['TEAM_ID'])
+                if time_local:
+                    print(f"  -> Adicionando novo jogador ao banco de dados.")
+                    foto_url = f"https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/{player_summary['PERSON_ID']}.png"
+                    
+                    db_jogador = crud.create_jogador_com_details(db, jogador=schemas.JogadorCreateComDetails(
+                        api_id=player_summary['PERSON_ID'],
+                        nome=player_summary['DISPLAY_FIRST_LAST'],
+                        nome_normalizado=player_summary['DISPLAY_FIRST_LAST'].lower(),
+                        time_atual_id=time_local.id,
+                        foto_url=foto_url,
+                        posicao=posicao,
+                        numero_camisa=numero_camisa,
+                        data_nascimento=data_nascimento,
+                        ano_draft=ano_draft,
+                        anos_experiencia=anos_experiencia,
+                        altura=altura_cm,
+                        peso=peso_kg,
+                        nacionalidade=nacionalidade
+                    ))
+                    jogadores_adicionados += 1
             else:
-                # Atualiza jogador existente com dados completos
+                print(f"  -> Atualizando jogador no banco de dados.")
                 crud.update_jogador_details(
                     db,
                     jogador_id=db_jogador.id,
@@ -294,127 +142,16 @@ def sync_nba_players(db: Session, force: bool = False):
                     peso=peso_kg,
                     nacionalidade=nacionalidade
                 )
-                
-                # Atualiza time atual e status
-                db_jogador.time_atual_id = time_local.id if time_local else None
-                db_jogador.status = 'ativo'
-                db.commit()
-                db.refresh(db_jogador)
-                
                 jogadores_atualizados += 1
-        
+            
+            jogadores_processados_nesta_execucao += 1
+
         except Exception as e:
-            print(f"  -> ERRO ao buscar detalhes do jogador {player['full_name']} (ID {player['id']}): {e}")
-            jogadores_com_erro += 1
+            print(f"ERRO ao processar jogador ID {player_summary['PERSON_ID']}: {e}. A avançar para o próximo.")
             continue
 
-    # Atualiza timestamp da sincronização
-    update_player_sync_timestamp()
-
-    print(f"\n✅ Sincronização COMPLETA de jogadores ATIVOS concluída!")
-    print(f"   - {jogadores_adicionados} novos jogadores adicionados")
-    print(f"   - {jogadores_atualizados} jogadores atualizados")
-    print(f"   - {jogadores_com_erro} erros durante sincronização")
-    print(f"   - Total de jogadores ativos sincronizados: {total_jogadores}")
-    print(f"   - Próxima sincronização: em 1 mês")
-    
-    return {
-        "total_sincronizado": total_jogadores,
-        "novos_adicionados": jogadores_adicionados,
-        "atualizados": jogadores_atualizados,
-        "erros": jogadores_com_erro
-    }
-
-def sync_player_details_by_id(db: Session, jogador_id: int):
-    """
-    Busca detalhes completos de um jogador específico via API (altura, peso, etc).
-    Use esta função sob demanda quando precisar de detalhes completos de um jogador.
-    
-    IMPORTANTE: Esta função pode levar ~2-15s por jogador (rate limiting + possíveis timeouts).
-    Não use em rotas HTTP síncronas - use apenas em batch jobs ou background tasks.
-    """
-    db_jogador = db.query(models.Jogador).filter(models.Jogador.id == jogador_id).first()
-    if not db_jogador or not db_jogador.api_id:
-        print(f"Jogador com ID {jogador_id} não encontrado ou sem API ID.")
-        return None
-    
-    print(f"Buscando detalhes completos para {db_jogador.nome} (API ID: {db_jogador.api_id})...")
-    
-    # REDUZIDO: 2 tentativas ao invés de 3 (fail faster em produção)
-    max_retries = 2
-    player_info_df = None
-    
-    try:
-        time.sleep(0.6)  # Rate limiting
-        
-        for attempt in range(max_retries):
-            try:
-                player_info_df = commonplayerinfo.CommonPlayerInfo(
-                    player_id=db_jogador.api_id,
-                    timeout=120
-                ).get_data_frames()
-                break
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    wait_time = 3  # REDUZIDO: 3s fixos ao invés de exponencial (5s, 10s, 15s)
-                    print(f"  -> Timeout na tentativa {attempt + 1}/{max_retries}. Aguardando {wait_time}s...")
-                    time.sleep(wait_time)
-                else:
-                    print(f"  -> Falha após {max_retries} tentativas. Pulando jogador.")
-                    raise e
-
-        if not player_info_df or player_info_df[0].empty:
-            print(f"  -> Não foram encontrados detalhes para o jogador.")
-            return None
-        
-        details = player_info_df[0].iloc[0]
-
-        data_nascimento_str = details.get('BIRTHDATE')
-        data_nascimento = datetime.strptime(data_nascimento_str, '%Y-%m-%dT%H:%M:%S').date() if data_nascimento_str else None
-        anos_experiencia = details.get('SEASON_EXP')
-        
-        draft_year_str = details.get('DRAFT_YEAR')
-        ano_draft = int(draft_year_str) if draft_year_str and draft_year_str != 'Undrafted' else None
-
-        posicao = details.get('POSITION')
-        numero_camisa_str = details.get('JERSEY')
-        numero_camisa = int(numero_camisa_str) if numero_camisa_str and numero_camisa_str.isdigit() else None
-        altura_cm = _convert_height_to_cm(details.get('HEIGHT'))
-        peso_kg = _convert_weight_to_kg(details.get('WEIGHT'))
-        nacionalidade = details.get('COUNTRY')
-        
-        # Busca o time atual do jogador (se disponível na API)
-        team_id = details.get('TEAM_ID')
-        time_local = None
-        if team_id and team_id != 0:  # 0 = sem time
-            time_local = crud.get_time_by_api_id(db, api_id=team_id)
-
-        # Atualiza os detalhes do jogador (incluindo time atual)
-        crud.update_jogador_details(
-            db,
-            jogador_id=db_jogador.id,
-            posicao=posicao,
-            numero_camisa=numero_camisa,
-            data_nascimento=data_nascimento,
-            ano_draft=ano_draft,
-            anos_experiencia=anos_experiencia,
-            altura=altura_cm,
-            peso=peso_kg,
-            nacionalidade=nacionalidade
-        )
-        
-        # Atualiza o time atual separadamente (se encontrado)
-        if time_local:
-            db_jogador.time_atual_id = time_local.id
-            db.commit()
-            db.refresh(db_jogador)
-        
-        print(f"  -> Detalhes atualizados com sucesso!")
-        return db_jogador
-
-    except Exception as e:
-        print(f"ERRO ao buscar detalhes do jogador ID {db_jogador.api_id}: {e}")
-        return None
+    print(f"\nSincronização COMPLETA terminada. {jogadores_adicionados} novos jogadores adicionados, {jogadores_atualizados} atualizados.")
+    return {"total_sincronizado": total_jogadores, "novos_adicionados": jogadores_adicionados, "jogadores_processados": jogadores_processados_nesta_execucao}
 
 def safe_int(value):
     """Safely converts a value to an integer, handling None and NaN."""
@@ -502,7 +239,7 @@ def sync_nba_games_v2(db: Session, season: str):
                 
                 # Atualiza estatísticas se o jogo já terminou
                 if (db_jogo and 
-                    db_jogo.data_jogo < datetime.now(timezone.utc) and
+                    db_jogo.data_jogo < datetime.now(timezone.utc) and 
                     db_jogo.placar_casa == 0 and
                     game.get('GAME_STATUS_ID', 1) == 3):  # Status 3 = Final
                     
@@ -525,9 +262,7 @@ def sync_nba_games_v2(db: Session, season: str):
                             )
                         else:
                             # Fallback para BoxScoreSummaryV2 se placar não estiver disponível
-                            # Rate limiting antes de chamada à API
-                            time.sleep(0.6)
-                            summary_df = boxscoresummaryv2.BoxScoreSummaryV2(game_id=game_id, timeout=120).get_data_frames()
+                            summary_df = boxscoresummaryv2.BoxScoreSummaryV2(game_id=game_id, timeout=60).get_data_frames()
                             
                             if summary_df and len(summary_df) > 5 and not summary_df[0].empty and not summary_df[5].empty:
                                 game_summary = summary_df[0].iloc[0]
@@ -548,8 +283,6 @@ def sync_nba_games_v2(db: Session, season: str):
                         # Busca estatísticas dos jogadores (usa método modernizado)
                         player_stats_df = None
                         try:
-                            # Rate limiting antes de chamada à API
-                            time.sleep(0.6)
                             player_stats_df = boxscoretraditionalv3.BoxScoreTraditionalV3(
                                 game_id=game_id,
                                 start_period=1,
@@ -557,14 +290,12 @@ def sync_nba_games_v2(db: Session, season: str):
                                 start_range=0,
                                 end_range=0,
                                 range_type=0,
-                                timeout=120  # Aumentado de 60 para 120 segundos
+                                timeout=60
                             ).get_data_frames()[0]
                             print(f"    -> Usando BoxScoreTraditionalV3 para jogo {game_id}")
                         except Exception as v3_error:
                             print(f"    -> BoxScoreTraditionalV3 falhou, usando V2: {v3_error}")
-                            # Rate limiting antes do fallback
-                            time.sleep(0.6)
-                            player_stats_df = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=120).get_data_frames()[0]
+                            player_stats_df = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=60).get_data_frames()[0]
                         
                         # Processa estatísticas dos jogadores
                         for index, p_stat in player_stats_df.iterrows():
@@ -615,10 +346,7 @@ def sync_nba_games(db: Session, season: str):
     """
     print(f"Iniciando a sincronização de jogos da temporada {season} (método legacy)...")
     
-    # Rate limiting antes de chamada à API
-    time.sleep(0.6)
-    
-    game_finder = leaguegamefinder.LeagueGameFinder(season_nullable=season, timeout=120)
+    game_finder = leaguegamefinder.LeagueGameFinder(season_nullable=season, timeout=60)
     games_df = game_finder.get_data_frames()[0]
     
     print(f"Total de registros de jogos encontrados na API: {len(games_df)}")
@@ -754,14 +482,11 @@ def _get_games_from_schedule_v2(season: str = None, silent_fail: bool = False):
         if not silent_fail:
             print(f"    -> Buscando jogos via ScheduleLeagueV2 para temporada {season}...")
         
-        # Rate limiting antes de chamada à API
-        time.sleep(0.6)
-        
         # Usa o novo endpoint ScheduleLeagueV2
         schedule = scheduleleaguev2.ScheduleLeagueV2(
             league_id="00",  # NBA
             season=season,
-            timeout=120  # Aumentado de 30 para 120 segundos
+            timeout=30
         )
         
         games_df = schedule.get_data_frames()[0]  # season_games
@@ -835,13 +560,10 @@ def _get_scoreboard_data_safely(date_str: str):
         else:  # Janeiro a junho = temporada anterior
             season = f"{date_obj.year - 1}-{str(date_obj.year)[-2:]}"
         
-        # Rate limiting antes de chamada à API
-        time.sleep(0.6)
-        
         # Busca jogos da temporada
         game_finder = leaguegamefinder.LeagueGameFinder(
             season_nullable=season,
-            timeout=120  # Aumentado de 30 para 120 segundos
+            timeout=30
         )
         games_df = game_finder.get_data_frames()[0]
         
@@ -1101,13 +823,10 @@ def _get_future_games_from_league_finder(db: Session, days_ahead: int = 30, sile
         if not silent_fail:
             print(f"Buscando jogos da temporada {season}...")
         
-        # Rate limiting antes de chamada à API
-        time.sleep(0.6)
-        
         # Busca todos os jogos da temporada
         game_finder = leaguegamefinder.LeagueGameFinder(
             season_nullable=season,
-            timeout=120  # Aumentado de 60 para 120 segundos
+            timeout=60
         )
         all_games = game_finder.get_data_frames()[0]
         
@@ -1398,7 +1117,7 @@ def sync_player_awards(db: Session, jogador_id: int):
     print(f"Buscando prémios para {db_jogador.nome} (API ID: {db_jogador.api_id})...")
     try:
         time.sleep(1.1) # Aumentar a pausa para segurança
-        awards_endpoint = playerawards.PlayerAwards(player_id=db_jogador.api_id, timeout=120)  # Aumentado de 60 para 120
+        awards_endpoint = playerawards.PlayerAwards(player_id=db_jogador.api_id, timeout=60)
         awards_df = awards_endpoint.get_data_frames()[0]
         
         premios_adicionados = 0
@@ -1461,7 +1180,7 @@ def sync_team_championships(db: Session, time_id: int):
     print(f"Buscando títulos para {db_time.nome} (API ID: {db_time.api_id})...")
     try:
         time.sleep(1.1)
-        details_endpoint = teamdetails.TeamDetails(team_id=db_time.api_id, timeout=120)  # Aumentado de 60 para 120
+        details_endpoint = teamdetails.TeamDetails(team_id=db_time.api_id, timeout=60)
         championships_df = details_endpoint.team_awards_championships.get_data_frame()
         
         titulos_adicionados = 0

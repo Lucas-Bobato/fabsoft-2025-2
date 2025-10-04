@@ -414,6 +414,8 @@ export default function ProfilePage() {
               <Avatar
                 src={
                   profile.foto_perfil
+                    ? `${process.env.NEXT_PUBLIC_API_URL}${profile.foto_perfil}`
+                    : "/placeholder.png"
                 }
                 fallback={profile.username[0]}
                 size="7"

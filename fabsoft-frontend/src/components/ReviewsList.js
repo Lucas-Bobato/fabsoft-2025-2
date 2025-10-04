@@ -77,6 +77,8 @@ const CommentSection = ({ reviewId }) => {
           <Avatar
             src={
               user?.foto_perfil
+                ? `${process.env.NEXT_PUBLIC_API_URL}${user.foto_perfil}`
+                : "/placeholder.png"
             }
             fallback={user?.username ? user.username[0] : "U"}
             size="2"
@@ -105,6 +107,8 @@ const CommentSection = ({ reviewId }) => {
                 asChild
                 src={
                   comment.usuario.foto_perfil
+                    ? `${process.env.NEXT_PUBLIC_API_URL}${comment.usuario.foto_perfil}`
+                    : "/placeholder.png"
                 }
                 fallback={comment.usuario.username[0]}
                 size="2"
@@ -198,6 +202,8 @@ const ReviewItem = ({ review, onDataChange }) => {
               asChild
               src={
                 review.usuario.foto_perfil
+                  ? `${process.env.NEXT_PUBLIC_API_URL}${review.usuario.foto_perfil}`
+                  : "/placeholder.png"
               }
               fallback={review.usuario.username[0]}
               size="3"

@@ -53,8 +53,7 @@ class JogadorBase(BaseModel):
     numero_camisa: Optional[int] = None
     posicao: Optional[str] = None
     foto_url: Optional[str] = None
-    time_atual_id: Optional[int] = None
-    status: Optional[str] = "ativo"
+    time_atual_id: int
 
 class JogadorCreate(JogadorBase):
     pass
@@ -68,7 +67,7 @@ class JogadorCreateComDetails(JogadorBase):
     nacionalidade: Optional[str] = None
 class Jogador(JogadorBase):
     id: int
-    slug: Optional[str] = None
+    slug: str
     time_atual: Optional[TimeSimple] = None
     model_config = {"from_attributes": True}
     
