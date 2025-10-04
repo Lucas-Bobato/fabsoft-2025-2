@@ -20,16 +20,18 @@ app = FastAPI(
 )
 
 origins = [
-    "http://localhost:3000",  # A origem do seu frontend Next.js em desenvolvimento
-    # Você pode adicionar outras origens aqui (ex: o URL do seu site em produção)
+    "http://localhost:3000"
 ]
+
+vercel_regex = r"https://.*\.vercel\.app"
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=vercel_regex,
     allow_credentials=True,
-    allow_methods=["*"],  # Permite todos os métodos (GET, POST, PUT, etc.)
-    allow_headers=["*"],  # Permite todos os cabeçalhos
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Inclui o roteador de usuários no aplicativo principal
