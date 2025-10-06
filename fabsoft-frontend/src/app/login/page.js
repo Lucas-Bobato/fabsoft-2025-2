@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -13,13 +13,16 @@ import {
   Link as RadixLink,
   Callout,
 } from "@radix-ui/themes";
-import { InfoCircledIcon } from "@radix-ui/react-icons";
+import { InfoCircledIcon, EyeOpenIcon, EyeClosedIcon } from "@radix-ui/react-icons";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [capsLockOn, setCapsLockOn] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
   const { login } = useAuth();
 
   const handleSubmit = async (e) => {
@@ -32,6 +35,23 @@ export default function LoginPage() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const evaluatePassword = useCallback((pwd) => {
+    return {
+      length: pwd.length >= 8,
+      upper: /[A-Z]/.test(pwd),
+      lower: /[a-z]/.test(pwd),
+      number: /[0-9]/.test(pwd),
+    };
+  }, []);
+
+  const passwordRules = evaluatePassword(password);
+
+  const handleKeyEvent = (e) => {
+    if (e.getModifierState) {
+      setCapsLockOn(e.getModifierState('CapsLock'));
     }
   };
 
@@ -82,22 +102,67 @@ export default function LoginPage() {
               />
             </label>
             <label>
-              <Flex justify="between" align="baseline">
-                <Text as="div" size="2" mb="1" weight="bold">
-                  Senha
+              <Text as="div" size="2" mb="1" weight="bold">
+                Senha
+              </Text>
+              <Box style={{ position: 'relative' }}>
+                <TextField.Root
+                  size="3"
+                  type={passwordVisible ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); if(!passwordTouched) setPasswordTouched(true); }}
+                  onKeyUp={handleKeyEvent}
+                  onKeyDown={handleKeyEvent}
+                  onBlur={() => setCapsLockOn(false)}
+                  required
+                >
+                  <TextField.Slot side="right">
+                    <button
+                      type="button"
+                      aria-label={passwordVisible ? 'Ocultar senha' : 'Mostrar senha'}
+                      onClick={() => setPasswordVisible(v => !v)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        color: 'var(--gray-11)'
+                      }}
+                    >
+                      {passwordVisible ? <EyeClosedIcon width={18} height={18} /> : <EyeOpenIcon width={18} height={18} />}
+                    </button>
+                  </TextField.Slot>
+                </TextField.Root>
+              </Box>
+              {capsLockOn && (
+                <Text size="1" color="amber" style={{ marginTop: '4px' }}>
+                  Caps Lock ativo
                 </Text>
+              )}
+              {passwordTouched && (
+                <Flex direction="column" gap="1" mt="2">
+                  <Text size="1" color={passwordRules.length ? 'green' : 'red'}>
+                    • Pelo menos 8 caracteres
+                  </Text>
+                  <Text size="1" color={passwordRules.upper ? 'green' : 'red'}>
+                    • Uma letra maiúscula
+                  </Text>
+                  <Text size="1" color={passwordRules.lower ? 'green' : 'red'}>
+                    • Uma letra minúscula
+                  </Text>
+                  <Text size="1" color={passwordRules.number ? 'green' : 'red'}>
+                    • Um número
+                  </Text>
+                </Flex>
+              )}
+              <Box mt="1" style={{ textAlign: 'right' }}>
                 <RadixLink asChild size="2">
-                  <Link href="#">Esqueceu a senha?</Link>
+                  <Link href="/recuperar-senha">Esqueceu a senha?</Link>
                 </RadixLink>
-              </Flex>
-              <TextField.Root
-                size="3"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              </Box>
             </label>
             <Button size="3" type="submit" loading={loading}>
               Entrar

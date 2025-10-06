@@ -198,6 +198,17 @@ const PlayerProfilePage = () => {
             size="9"
             fallback={player.nome?.charAt(0) || "?"}
             style={{ border: '4px solid rgba(255,255,255,0.2)' }}
+            onError={(e) => {
+              const target = e.target;
+              if (target && target.src) {
+                // Tenta substituir domínio antigo se ainda estiver vindo dele
+                if (target.src.includes('ak-static.cms.nba.com')) {
+                  target.src = target.src.replace('ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190', 'cdn.nba.com/headshots/nba/latest/260x190');
+                } else {
+                  target.src = '/placeholder.png';
+                }
+              }
+            }}
           />
           <Box>
             <Text size="4" style={{ opacity: 0.9, color: colors.text }}>
@@ -255,7 +266,7 @@ const PlayerProfilePage = () => {
                     <StatItem
                       icon={<Calendar />}
                       label="Draft"
-                      value={player.ano_draft || "N/A"}
+                      value={player.ano_draft ?? "Não Draftado"}
                     />
                     <StatItem
                       icon={<Award />}

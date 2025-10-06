@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import TeamSelector from "@/components/TeamSelector";
@@ -32,8 +32,13 @@ export default function CadastroPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const fileInputRef = useRef(null);
+  const [fileName, setFileName] = useState("");
+
   const handleFileChange = (e) => {
-    setFormData((prev) => ({ ...prev, foto_perfil: e.target.files[0] }));
+    const file = e.target.files && e.target.files[0];
+    setFormData((prev) => ({ ...prev, foto_perfil: file || null }));
+    setFileName(file ? file.name : "");
   };
 
   const handleNextStep = (e) => {
@@ -155,12 +160,60 @@ export default function CadastroPage() {
                   <Text as="div" size="2" mb="1" weight="bold">
                     Foto de Perfil (Opcional)
                   </Text>
-                  <TextField.Root
-                    size="3"
-                    type="file"
-                    name="foto_perfil"
-                    onChange={handleFileChange}
-                  />
+                  <div
+                    style={{
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      border: '1px solid var(--gray-6)',
+                      background: 'var(--color-panel-solid)',
+                      borderRadius: '6px',
+                      padding: '0 8px',
+                      height: '44px',
+                      fontSize: '14px',
+                      color: 'var(--gray-11)'
+                    }}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      name="foto_perfil"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        opacity: 0,
+                        width: '100%',
+                        cursor: 'pointer'
+                      }}
+                      aria-label="Selecionar foto de perfil"
+                    />
+                    <span style={{
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      flex: 1,
+                      paddingRight: '8px'
+                    }}>
+                      {fileName || 'Escolher imagem...'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{
+                        background: 'var(--indigo-9)',
+                        color: 'white',
+                        border: 'none',
+                        fontSize: '12px',
+                        padding: '6px 10px',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {fileName ? 'Trocar' : 'Selecionar'}
+                    </button>
+                  </div>
                 </label>
                 <Button size="3" type="submit">
                   Avançar

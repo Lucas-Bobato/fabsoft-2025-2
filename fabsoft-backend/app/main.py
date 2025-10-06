@@ -16,13 +16,22 @@ db.close()
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Corrige URLs antigas de fotos (se houver) ao iniciar a aplicação
+    try:
+        db = SessionLocal()
+        updated = crud.fix_old_player_photo_urls(db)
+        if updated:
+            print(f"[Startup] Atualizadas {updated} fotos de jogadores para novo CDN.")
+        db.close()
+    except Exception as e:
+        print(f"[Startup] Falha ao corrigir fotos de jogadores: {e}")
     start_scheduler()
     yield
 
 app = FastAPI(
     title="SlamTalk API",
     description="A API para a plataforma de avaliação de jogos de basquete.",
-    version="0.2.0"
+    version="1.0"
 )
 
 origins = [

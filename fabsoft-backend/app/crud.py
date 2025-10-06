@@ -177,6 +177,21 @@ def get_jogador(db: Session, jogador_id: int):
         joinedload(models.Jogador.time_atual)
     ).filter(models.Jogador.id == jogador_id).first()
 
+def fix_old_player_photo_urls(db: Session, commit: bool = True) -> int:
+    """Atualiza URLs antigas de fotos (ak-static.cms.nba.com) para o novo domínio cdn.nba.com.
+
+    Retorna a quantidade de registros atualizados.
+    """
+    antigos = db.query(models.Jogador).filter(models.Jogador.foto_url.like('%ak-static.cms.nba.com%')).all()
+    count = 0
+    for jog in antigos:
+        if jog.foto_url:
+            jog.foto_url = jog.foto_url.replace('https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/', 'https://cdn.nba.com/headshots/nba/latest/260x190/')
+            count += 1
+    if commit and count:
+        db.commit()
+    return count
+
 def get_jogador_by_api_id(db: Session, api_id: int):
     """Busca um jogador pelo ID da API externa."""
     return db.query(models.Jogador).filter(models.Jogador.api_id == api_id).first()

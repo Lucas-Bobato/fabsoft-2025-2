@@ -1,3 +1,4 @@
+from .. import services, crud
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -31,11 +32,18 @@ def sync_players_endpoint(
     skip: int = Query(0, description="Número de jogadores a saltar (para retomar sincronização)."),
     limit: Optional[int] = Query(None, description="Quantidade máxima de jogadores a sincronizar nesta chamada."),
 ):
-    """
-    Endpoint para acionar a sincronização de jogadores da NBA.
-    """
+    """Endpoint para acionar a sincronização de jogadores da NBA."""
     resultado = nba_importer.sync_nba_players(db, skip=skip, limit=limit)
     return resultado
+
+@router.post("/maintenance/fix-player-photos")
+def maintenance_fix_player_photos(
+    db: Session = Depends(get_db),
+    current_user: schemas.Usuario = Depends(get_current_user)
+):
+    """Corrige URLs antigas de fotos dos jogadores que retornam 403."""
+    updated = crud.fix_old_player_photo_urls(db)
+    return {"updated": updated, "message": f"{updated} fotos atualizadas para o novo CDN"}
 
 @router.post("/sync-games/{season}", response_model=schemas.SyncResponse)
 def sync_games_endpoint(

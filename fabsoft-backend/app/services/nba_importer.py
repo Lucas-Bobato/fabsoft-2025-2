@@ -135,7 +135,9 @@ def sync_nba_players(db: Session, skip: int = 0, limit: Optional[int] = None):
                 time_local = crud.get_time_by_api_id(db, api_id=player_summary['TEAM_ID'])
                 if time_local:
                     print(f"  -> Adicionando novo jogador ao banco de dados.")
-                    foto_url = f"https://ak-static.cms.nba.com/wp-content/uploads/headshots/nba/latest/260x190/{player_summary['PERSON_ID']}.png"
+                    # A NBA mudou recentemente o domínio das headshots. O domínio antigo (ak-static.cms.nba.com)
+                    # está retornando 403 em muitos cenários (hotlink protection). Usamos agora o cdn.nba.com.
+                    foto_url = f"https://cdn.nba.com/headshots/nba/latest/260x190/{player_summary['PERSON_ID']}.png"
                     
                     db_jogador = crud.create_jogador_com_details(db, jogador=schemas.JogadorCreateComDetails(
                         api_id=player_summary['PERSON_ID'],
