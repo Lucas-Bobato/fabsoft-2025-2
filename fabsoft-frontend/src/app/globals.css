@@ -26,6 +26,54 @@ body {
     background-attachment: fixed;
 }
 
+/* Estilo para destacar avaliação específica */
+.highlight-review {
+    animation: highlightPulse 2s ease-in-out;
+}
+
+@keyframes highlightPulse {
+    0%, 100% { 
+        transform: scale(1);
+        box-shadow: 0 0 0 rgba(59, 130, 246, 0);
+    }
+    50% { 
+        transform: scale(1.02);
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+    }
+}
+
+/* Estilos globais para scroll - aplicam a todos os componentes com scroll */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--indigo-9) rgba(148, 163, 184, 0.15);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--indigo-9), var(--indigo-11));
+  border-radius: 9999px;
+  border: 2px solid rgba(148, 163, 184, 0.15);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--indigo-10), var(--indigo-12));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 .icon-rating, .icon-display { display: flex; gap: 0.25rem; }
 .icon-rating { cursor: pointer; }
 .rating-icon { width: 1.5rem; height: 1.5rem; color: #4B5563; transition: color 0.2s; }
@@ -52,11 +100,10 @@ body {
     color: var(--active-color, #FBBF24);
 }
 
-#nota-partida-slider { -webkit-appearance: none; width: 100%; height: 8px; border-radius: 5px; background: #374151; outline: none; transition: background 0.3s; }
+#nota-partida-slider { appearance: none; -webkit-appearance: none; width: 100%; height: 8px; border-radius: 5px; background: #374151; outline: none; transition: background 0.3s; }
 #nota-partida-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #FFF; cursor: pointer; border: 2px solid var(--slider-color, #4ade80); }
 
-.player-item { padding: 0.75rem 1rem; cursor: pointer; transition: background-color 0.3s, transform 0.2s; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
-.player-item:last-child { border-bottom: none; }
+.player-item { padding: 0.75rem 1rem; cursor: pointer; transition: background-color 0.3s, transform 0.2s; }
 .player-item:hover { background-color: rgba(255, 255, 255, 0.1); transform: scale(1.02); }
 .player-item.selected-best { background-color: #166534; font-weight: bold; color: white; transform: scale(1.02); }
 .player-item.selected-worst { background-color: #991B1B; font-weight: bold; color: white; transform: scale(1.02); }
@@ -141,4 +188,131 @@ body {
 .upcoming-game-card:hover {
   background-color: var(--gray-a3);
   transform: translateX(3px);
+}
+
+/* Estilos específicos para ScrollArea do Radix UI */
+.rating-scroll-area {
+  position: relative;
+  overflow: hidden;
+}
+
+.rating-scroll-area-main {
+  flex: 1;
+}
+
+.rating-scroll-viewport {
+  padding-right: 16px;
+  width: 100%;
+  height: 100%;
+}
+
+.rating-scroll-viewport-slim {
+  padding-right: 12px;
+  width: 100%;
+  height: 100%;
+}
+
+.rating-scroll-area-slim {
+  border-radius: 8px;
+}
+
+/* ScrollArea personalizado usando o mesmo estilo do scroll global */
+.rating-scrollbar {
+  display: flex;
+  user-select: none;
+  touch-action: none;
+  padding: 2px;
+  border-radius: 9999px;
+  background-color: rgba(148, 163, 184, 0.15);
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+.rating-scrollbar[data-orientation="vertical"] {
+  width: 10px;
+}
+
+.rating-scrollbar[data-orientation="horizontal"] {
+  height: 10px;
+}
+
+.rating-scrollbar:hover {
+  background-color: rgba(148, 163, 184, 0.28);
+}
+
+.rating-scrollbar[data-state="hidden"] {
+  opacity: 0;
+}
+
+.rating-scroll-thumb {
+  flex: 1;
+  border-radius: 9999px;
+  position: relative;
+  background: linear-gradient(180deg, var(--indigo-9), var(--indigo-11));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+.rating-scroll-thumb:hover {
+  background: linear-gradient(180deg, var(--indigo-10), var(--indigo-12));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.rating-scroll-area-slim .rating-scrollbar[data-orientation="vertical"] {
+  width: 8px;
+}
+
+.rating-scroll-corner {
+  background-color: transparent;
+}
+
+/* Classes utilitárias para diferentes tipos de scroll */
+.custom-scroll-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scroll-thick::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+/* Scroll para áreas de texto */
+.custom-scroll-textarea::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scroll-textarea::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.1);
+  border-radius: 9999px;
+}
+
+.custom-scroll-textarea::-webkit-scrollbar-thumb {
+  background: var(--gray-9);
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+/* Scroll para modais e containers principais */
+.custom-scroll-modal::-webkit-scrollbar {
+  width: 10px;
+}
+
+.custom-scroll-modal::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.12);
+  border-radius: 9999px;
+}
+
+.custom-scroll-modal::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--indigo-8), var(--indigo-10));
+  border-radius: 9999px;
+  border: 2px solid rgba(148, 163, 184, 0.12);
+}
+
+/* Scroll invisível para casos específicos */
+.custom-scroll-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+.custom-scroll-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

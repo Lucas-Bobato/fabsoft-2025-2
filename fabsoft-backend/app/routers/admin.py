@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from ..dependencies import get_db
 from ..services import nba_importer
@@ -27,12 +28,13 @@ def sync_teams_endpoint(
 def sync_players_endpoint(
     db: Session = Depends(get_db),
     current_user: schemas.Usuario = Depends(get_current_user),
-    skip: int = Query(0, description="Número de jogadores a saltar (para retomar sincronização).")
+    skip: int = Query(0, description="Número de jogadores a saltar (para retomar sincronização)."),
+    limit: Optional[int] = Query(None, description="Quantidade máxima de jogadores a sincronizar nesta chamada."),
 ):
     """
     Endpoint para acionar a sincronização de jogadores da NBA.
     """
-    resultado = nba_importer.sync_nba_players(db, skip=skip)
+    resultado = nba_importer.sync_nba_players(db, skip=skip, limit=limit)
     return resultado
 
 @router.post("/sync-games/{season}", response_model=schemas.SyncResponse)
@@ -63,26 +65,30 @@ def sync_future_games_endpoint(
 def sync_awards_endpoint(
     jogador_id: int,
     db: Session = Depends(get_db),
-    current_user: schemas.Usuario = Depends(get_current_user)
+    current_user: schemas.Usuario = Depends(get_current_user),
+    skip: int = Query(0, description="Número de prémios a saltar antes de sincronizar."),
+    limit: Optional[int] = Query(None, description="Quantidade máxima de prémios a sincronizar para o jogador."),
 ):
     """
     Endpoint para acionar a sincronização de prémios para um jogador específico
     usando o ID INTERNO do banco de dados.
     """
-    resultado = nba_importer.sync_player_awards(db, jogador_id=jogador_id)
+    resultado = nba_importer.sync_player_awards(db, jogador_id=jogador_id, skip=skip, limit=limit)
     return resultado
 
     
 @router.post("/sync-all-awards", response_model=SyncAllAwardsResponse)
 def sync_all_awards_endpoint(
     db: Session = Depends(get_db),
-    current_user: schemas.Usuario = Depends(get_current_user)
+    current_user: schemas.Usuario = Depends(get_current_user),
+    skip: int = Query(0, description="Número de jogadores a saltar antes de sincronizar prémios."),
+    limit: Optional[int] = Query(None, description="Quantidade máxima de jogadores a sincronizar prémios nesta chamada."),
 ):
     """
     Endpoint para acionar a sincronização de prémios para TODOS os jogadores
     no banco de dados. ATENÇÃO: Este processo pode demorar muito tempo.
     """
-    resultado = nba_importer.sync_all_players_awards(db)
+    resultado = nba_importer.sync_all_players_awards(db, skip=skip, limit=limit)
     return resultado
 
 @router.post("/sync-championships/{time_id}", response_model=SyncChampionshipsResponse)
@@ -117,7 +123,7 @@ def sync_career_stats_endpoint(
     current_user: schemas.Usuario = Depends(get_current_user)
 ):
     """
-    Endpoint para validar e testar o acesso às estatísticas de carreira 
+    Endpoint para validar e testar o acesso às estatísticas de carreira
     de um jogador específico usando o ID INTERNO do banco de dados.
     """
     resultado = nba_importer.sync_player_career_stats(db, jogador_id=jogador_id)

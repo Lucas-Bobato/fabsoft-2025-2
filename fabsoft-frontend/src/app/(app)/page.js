@@ -109,13 +109,13 @@ export default function HomePage() {
 
   const handleLike = (reviewId, isLiked) => {
     // Atualizar o estado local quando uma avaliação for curtida/descurtida
-    const updateFeed = (feed) => 
-      feed.map(review => 
-        review.id === reviewId 
-          ? { 
-              ...review, 
-              ja_curtiu: isLiked, 
-              total_curtidas: isLiked ? review.total_curtidas + 1 : review.total_curtidas - 1 
+    const updateFeed = (feed) =>
+      feed.map(review =>
+        review.id === reviewId
+          ? {
+              ...review,
+              ja_curtiu: isLiked,
+              total_curtidas: isLiked ? review.total_curtidas + 1 : review.total_curtidas - 1
             }
           : review
       );
@@ -203,9 +203,9 @@ export default function HomePage() {
                   </Flex>
                 ) : personalizedFeed.length > 0 ? (
                   personalizedFeed.map((review) => (
-                    <ReviewCard 
-                      key={review.id} 
-                      review={review} 
+                    <ReviewCard
+                      key={review.id}
+                      review={review}
                       onLike={handleLike}
                     />
                   ))
@@ -227,9 +227,9 @@ export default function HomePage() {
                   </Flex>
                 ) : followingFeed.length > 0 ? (
                   followingFeed.map((review) => (
-                    <ReviewCard 
-                      key={review.id} 
-                      review={review} 
+                    <ReviewCard
+                      key={review.id}
+                      review={review}
                       onLike={handleLike}
                     />
                   ))

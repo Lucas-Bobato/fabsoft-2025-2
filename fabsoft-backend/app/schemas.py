@@ -220,12 +220,12 @@ class UsuarioSimple(BaseModel):
 # --- Schemas para Avaliacao_Jogo ---
 class AvaliacaoJogoBase(BaseModel):
     nota_geral: float = Field(..., ge=0.5, le=5)
-    nota_ataque_casa: Optional[float] = Field(None, ge=0.5, le=5)
-    nota_defesa_casa: Optional[float] = Field(None, ge=0.5, le=5)
-    nota_ataque_visitante: Optional[float] = Field(None, ge=0.5, le=5)
-    nota_defesa_visitante: Optional[float] = Field(None, ge=0.5, le=5)
-    nota_arbitragem: Optional[float] = Field(None, ge=0.5, le=5)
-    nota_atmosfera: Optional[float] = Field(None, ge=0.5, le=5)
+    nota_ataque_casa: Optional[float] = Field(None, ge=0, le=5)
+    nota_defesa_casa: Optional[float] = Field(None, ge=0, le=5)
+    nota_ataque_visitante: Optional[float] = Field(None, ge=0, le=5)
+    nota_defesa_visitante: Optional[float] = Field(None, ge=0, le=5)
+    nota_arbitragem: Optional[float] = Field(None, ge=0, le=5)
+    nota_atmosfera: Optional[float] = Field(None, ge=0, le=5)
     resenha: Optional[str] = None
     melhor_jogador_id: Optional[int] = None
     pior_jogador_id: Optional[int] = None

@@ -699,6 +699,19 @@ def create_comentario(db: Session, comentario: schemas.ComentarioCreate, usuario
 def get_comentarios_por_avaliacao(db: Session, avaliacao_id: int, skip: int = 0, limit: int = 100):
     return db.query(models.Comentario_Avaliacao).filter(models.Comentario_Avaliacao.avaliacao_id == avaliacao_id).offset(skip).limit(limit).all()
 
+def delete_comentario(db: Session, comentario_id: int, usuario_id: int):
+    """Exclui um comentário, apenas se o usuário for o autor"""
+    comentario = db.query(models.Comentario_Avaliacao).filter(
+        models.Comentario_Avaliacao.id == comentario_id,
+        models.Comentario_Avaliacao.usuario_id == usuario_id
+    ).first()
+    
+    if comentario:
+        db.delete(comentario)
+        db.commit()
+        return True
+    return False
+
 def like_avaliacao(db: Session, usuario_id: int, avaliacao_id: int):
     # 1. Verifica se a curtida já existe (correto)
     db_like = db.query(models.Curtida_Avaliacao).filter(

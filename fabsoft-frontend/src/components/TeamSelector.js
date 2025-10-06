@@ -10,6 +10,7 @@ import {
   Heading,
   Box,
   Spinner,
+  ScrollArea,
 } from "@radix-ui/themes";
 
 export default function TeamSelector({
@@ -59,45 +60,65 @@ export default function TeamSelector({
         </Heading>
       )}
 
-      <Grid
-        columns={{ initial: "3", sm: "4", md: "5" }}
-        gap="3"
-        style={{ maxHeight: "400px", overflowY: "auto" }}
+      <ScrollArea
+        style={{
+          maxHeight: isEditMode ? "300px" : "400px",
+          paddingRight: "8px",
+        }}
       >
-        {teams.map((team) => (
-          <Card
-            key={team.id}
-            onClick={() => handleSelect(team.id)}
-            variant={selectedTeam === team.id ? "surface" : "ghost"}
-            style={{
-              cursor: "pointer",
-              transition: "transform 0.2s, box-shadow 0.2s",
-              transform: selectedTeam === team.id ? "scale(1.05)" : "scale(1)",
-              boxShadow:
-                selectedTeam === team.id ? "0 0 0 2px var(--accent-9)" : "none",
-            }}
-          >
-            <Flex direction="column" align="center" justify="center" gap="2">
-              <img
-                src={team.logo_url}
-                alt={`Logo ${team.nome}`}
-                style={{
-                  height: "50px",
-                  width: "50px",
-                  objectFit: "contain",
-                }}
-              />
-              <Text
-                size="1"
-                weight="bold"
-                display={{ initial: "none", sm: "block" }}
+        <Grid
+          columns={{
+            initial: "3",
+            sm: isEditMode ? "4" : "5",
+            md: isEditMode ? "5" : "6",
+          }}
+          gap="3"
+        >
+          {teams.map((team) => (
+            <Card
+              key={team.id}
+              onClick={() => handleSelect(team.id)}
+              variant={selectedTeam === team.id ? "surface" : "ghost"}
+              style={{
+                cursor: "pointer",
+                transition: "transform 0.2s, box-shadow 0.2s",
+                transform:
+                  selectedTeam === team.id ? "scale(1.05)" : "scale(1)",
+                boxShadow:
+                  selectedTeam === team.id
+                    ? "0 0 0 2px var(--accent-9)"
+                    : "none",
+              }}
+            >
+              <Flex
+                direction="column"
+                align="center"
+                justify="center"
+                gap="2"
+                p="2"
               >
-                {team.sigla}
-              </Text>
-            </Flex>
-          </Card>
-        ))}
-      </Grid>
+                <img
+                  src={team.logo_url || "/placeholder.svg"}
+                  alt={`Logo ${team.nome}`}
+                  style={{
+                    height: "50px",
+                    width: "50px",
+                    objectFit: "contain",
+                  }}
+                />
+                <Text
+                  size="1"
+                  weight="bold"
+                  align="center"
+                  display={{ initial: "none", sm: "block" }}
+                >
+                  {team.sigla}
+                </Text>
+              </Flex>
+            </Card>
+          ))}
+        </Grid>
+      </ScrollArea>
 
       {!isEditMode && (
         <Button

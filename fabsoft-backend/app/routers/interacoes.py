@@ -44,6 +44,16 @@ def create_comentario_endpoint(
 def read_comentarios_endpoint(avaliacao_id: int, db: Session = Depends(get_db)):
     return crud.get_comentarios_por_avaliacao(db=db, avaliacao_id=avaliacao_id)
 
+@router.delete("/comentarios/{comentario_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_comentario_endpoint(
+    comentario_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.Usuario = Depends(get_current_user)
+):
+    success = crud.delete_comentario(db=db, comentario_id=comentario_id, usuario_id=current_user.id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Comentário não encontrado ou você não tem permissão para excluí-lo.")
+
 @router.post("/avaliacoes/{avaliacao_id}/like", response_model=schemas.CurtidaResponse)
 def like_avaliacao_endpoint(
     avaliacao_id: int,

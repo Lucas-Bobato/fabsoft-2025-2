@@ -33,15 +33,25 @@ def _convert_weight_to_kg(weight_lbs: str) -> Optional[float]:
         return None
     
 
-def sync_nba_players(db: Session, skip: int = 0):
+def sync_nba_players(db: Session, skip: int = 0, limit: Optional[int] = None):
     """
     Sincroniza os jogadores da NBA em lotes, com uma estratégia de retentativa
-    robusta (exponential backoff) e a capacidade de saltar jogadores já processados.
+    robusta (exponential backoff) e a capacidade de saltar jogadores já processados,
+    além de limitar quantos jogadores são sincronizados por execução.
 
     :param db: A sessão da base de dados.
     :param skip: O número de jogadores a saltar no início (para retomar uma sincronização).
+    :param limit: Quantidade máxima de jogadores a sincronizar nesta execução (None para todos).
     """
-    print(f"Iniciando a sincronização de jogadores da NBA em lotes (a começar do jogador #{skip + 1})...")
+    skip = max(skip, 0)
+    if limit is not None and limit <= 0:
+        print("Limite informado é zero ou negativo. Nenhum jogador será processado.")
+        return {"total_sincronizado": 0, "novos_adicionados": 0, "jogadores_processados": 0}
+
+    limit_label = "todos" if limit is None else limit
+    print(
+        f"Iniciando a sincronização de jogadores da NBA em lotes (skip={skip}, limit={limit_label})..."
+    )
     
     player_data = None
     max_retries = 5
@@ -57,14 +67,29 @@ def sync_nba_players(db: Session, skip: int = 0):
 
     jogadores_adicionados = 0
     jogadores_atualizados = 0
-    total_jogadores = len(player_data)
     jogadores_processados_nesta_execucao = 0
-    
-    if skip > 0:
-        player_data = player_data.iloc[skip:]
 
-    for i, player_summary in player_data.iterrows():
-        print(f"Processando jogador {i + 1}/{total_jogadores}: {player_summary['DISPLAY_FIRST_LAST']}...")
+    total_disponivel = len(player_data)
+    if skip >= total_disponivel:
+        print(
+            f"Skip ({skip}) é maior ou igual ao total de jogadores disponíveis ({total_disponivel}). Nada a processar."
+        )
+        return {"total_sincronizado": 0, "novos_adicionados": 0, "jogadores_processados": 0}
+
+    end_index = skip + limit if limit is not None else None
+    player_data = player_data.iloc[skip:end_index]
+    total_jogadores = len(player_data)
+
+    if total_jogadores == 0:
+        print("Nenhum jogador selecionado após aplicar skip/limit. Nada a sincronizar.")
+        return {"total_sincronizado": 0, "novos_adicionados": 0, "jogadores_processados": 0}
+
+    print(f" -> Processando {total_jogadores} jogadores (de {total_disponivel} disponíveis).")
+
+    for posicao_relativa, (_, player_summary) in enumerate(player_data.iterrows(), start=1):
+        print(
+            f"Processando jogador {posicao_relativa}/{total_jogadores}: {player_summary['DISPLAY_FIRST_LAST']}..."
+        )
         db_jogador = crud.get_jogador_by_api_id(db, api_id=player_summary['PERSON_ID'])
         
         try:
@@ -1105,13 +1130,19 @@ def try_sync_future_games_startup(db: Session):
         print(f"Sincronização silenciosa de jogos futuros falhou: {e}")
         return {"total_sincronizado": 0, "novos_adicionados": 0}
 
-def sync_player_awards(db: Session, jogador_id: int):
+def sync_player_awards(db: Session, jogador_id: int, skip: int = 0, limit: Optional[int] = None):
     """
-    Busca os prémios (All-Star, MVP, etc.) de um jogador específico e salva-os no banco de dados.
+    Busca os prémios (All-Star, MVP, etc.) de um jogador específico e salva-os no banco de dados,
+    com suporte para saltar e limitar a quantidade de prémios processados por execução.
     """
     db_jogador = db.query(models.Jogador).filter(models.Jogador.id == jogador_id).first()
     if not db_jogador or not db_jogador.api_id:
         print(f"Jogador com ID local {jogador_id} não encontrado ou sem API ID.")
+        return {"novos_premios_adicionados": 0}
+
+    skip = max(skip, 0)
+    if limit is not None and limit <= 0:
+        print("Limite informado para prémios é zero ou negativo. Nada a sincronizar.")
         return {"novos_premios_adicionados": 0}
 
     print(f"Buscando prémios para {db_jogador.nome} (API ID: {db_jogador.api_id})...")
@@ -1120,8 +1151,27 @@ def sync_player_awards(db: Session, jogador_id: int):
         awards_endpoint = playerawards.PlayerAwards(player_id=db_jogador.api_id, timeout=60)
         awards_df = awards_endpoint.get_data_frames()[0]
         
+        total_disponivel = len(awards_df)
+        if total_disponivel == 0:
+            print(f" -> Nenhum prémio encontrado na API para {db_jogador.nome}.")
+            return {"novos_premios_adicionados": 0}
+
+        if skip >= total_disponivel:
+            print(f" -> Skip ({skip}) excede o total de prémios disponíveis ({total_disponivel}). Nada a sincronizar.")
+            return {"novos_premios_adicionados": 0}
+
+        end_index = skip + limit if limit is not None else None
+        awards_df = awards_df.iloc[skip:end_index]
+
+        premios_selecionados = len(awards_df)
+        if premios_selecionados == 0:
+            print(" -> Nenhum prémio selecionado após aplicar skip/limit.")
+            return {"novos_premios_adicionados": 0}
+
+        print(f" -> Processando {premios_selecionados} prémios (de {total_disponivel} disponíveis).")
+
         premios_adicionados = 0
-        for index, award in awards_df.iterrows():
+        for _, award in awards_df.iterrows():
             season_str = str(award['SEASON'])
             temporada_formatada = ""
             if '-' in season_str:
@@ -1141,25 +1191,41 @@ def sync_player_awards(db: Session, jogador_id: int):
             )
             premios_adicionados += 1
 
-        print(f" -> {len(awards_df)} prémios encontrados e sincronizados para {db_jogador.nome}.")
+        print(f" -> {premios_selecionados} prémios processados e sincronizados para {db_jogador.nome}.")
         return {"novos_premios_adicionados": premios_adicionados}
 
     except Exception as e:
         print(f"Erro ao buscar prémios para o jogador ID {db_jogador.api_id}: {e}")
         return {"novos_premios_adicionados": 0}
-    
-def sync_all_players_awards(db: Session):
-    """
-    Percorre TODOS os jogadores no banco de dados e busca os seus prémios.
-    Este é um processo LONGO e que consome muitos recursos da API.
-    """
-    todos_jogadores = crud.get_jogadores(db, limit=6000) # Busca todos os jogadores
-    total_premios_adicionados = 0
-    
-    print(f"Iniciando sincronização de prémios para {len(todos_jogadores)} jogadores...")
 
-    for i, jogador in enumerate(todos_jogadores):
-        print(f"({i+1}/{len(todos_jogadores)}) Sincronizando prémios para: {jogador.nome}")
+def sync_all_players_awards(db: Session, skip: int = 0, limit: Optional[int] = None):
+    """
+    Percorre os jogadores no banco de dados e busca os seus prémios, permitindo saltar
+    alguns jogadores e limitar quantos são processados por execução. Este é um processo
+    LONGO e que consome muitos recursos da API.
+    """
+    skip = max(skip, 0)
+    if limit is not None and limit <= 0:
+        print("Limite informado é zero ou negativo. Nenhum prémio será processado.")
+        return {"total_premios_sincronizados": 0}
+
+    fetch_limit = limit if limit is not None else 6000
+    todos_jogadores = crud.get_jogadores(db, skip=skip, limit=fetch_limit)
+    total_jogadores_selecionados = len(todos_jogadores)
+
+    if total_jogadores_selecionados == 0:
+        print("Nenhum jogador encontrado para sincronizar prémios com os parâmetros fornecidos.")
+        return {"total_premios_sincronizados": 0}
+
+    total_premios_adicionados = 0
+
+    limit_label = "todos" if limit is None else limit
+    print(
+        f"Iniciando sincronização de prémios para {total_jogadores_selecionados} jogadores (skip={skip}, limit={limit_label})..."
+    )
+
+    for posicao_relativa, jogador in enumerate(todos_jogadores, start=1):
+        print(f"({posicao_relativa}/{total_jogadores_selecionados}) Sincronizando prémios para: {jogador.nome}")
         if jogador.api_id:
             resultado = sync_player_awards(db, jogador_id=jogador.id)
             total_premios_adicionados += resultado.get("novos_premios_adicionados", 0)

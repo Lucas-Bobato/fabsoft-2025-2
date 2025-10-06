@@ -4,7 +4,6 @@ import { useAuth } from "@/context/AuthContext";
 import {
   Flex,
   Box,
-  Text,
   Button,
   Avatar,
   DropdownMenu,
@@ -55,9 +54,7 @@ export default function Header() {
     >
       <Flex justify="between" align="center" maxWidth="1280px" mx="auto">
         <Heading asChild as="h1" size="6" weight="bold">
-          <Link href="/">
-            SlamTalk
-          </Link>
+          <Link href="/">SlamTalk</Link>
         </Heading>
 
         <Flex align="center" gap="5">
@@ -74,18 +71,30 @@ export default function Header() {
                 <button>
                   <Avatar
                     src={profilePicUrl}
-                    fallback={user.username ? user.username[0].toUpperCase() : "U"}
+                    fallback={
+                      user.username ? user.username[0].toUpperCase() : "U"
+                    }
                     size="3"
                     radius="full"
                   />
                 </button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Content>
-                <DropdownMenu.Item asChild>
-                  <Link href={`/perfil/${user.username}`}>Meu Perfil</Link>
+                <DropdownMenu.Item>
+                  <Link
+                    href={`/perfil/${user.username}`}
+                    style={{ textDecoration: "none", color: "inherit" }}
+                  >
+                    Meu Perfil
+                  </Link>
                 </DropdownMenu.Item>
-                <DropdownMenu.Item asChild>
-                  <Link href="/conquistas">Conquistas</Link>
+                <DropdownMenu.Item>
+                  <Link
+                    href="/conquistas"
+                    style={{ textDecoration: "none", color: "inherit" }}
+                  >
+                    Conquistas
+                  </Link>
                 </DropdownMenu.Item>
                 <DropdownMenu.Separator />
                 <DropdownMenu.Item color="red" onClick={logout}>

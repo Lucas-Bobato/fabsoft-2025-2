@@ -1,7 +1,17 @@
+"use client";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card, Flex, Box, Text, Avatar, Heading, Button } from "@radix-ui/themes";
-import { StarIcon, HeartIcon, ChatBubbleIcon } from "@radix-ui/react-icons";
+import {
+  Card,
+  Flex,
+  Box,
+  Text,
+  Avatar,
+  Heading,
+  Button,
+} from "@radix-ui/themes";
+import { StarIcon, HeartIcon, HeartFilledIcon, ChatBubbleIcon } from "@radix-ui/react-icons";
 import { useState } from "react";
 import api from "@/services/api";
 
@@ -12,7 +22,7 @@ export default function ReviewCard({ review, onLike }) {
   const handleLike = async () => {
     if (isLiking) return;
     setIsLiking(true);
-    
+
     try {
       if (review.ja_curtiu) {
         await api.delete(`/avaliacoes/${review.id}/like`);
@@ -38,13 +48,13 @@ export default function ReviewCard({ review, onLike }) {
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
-    
+
     if (diffInHours < 1) return "agora há pouco";
     if (diffInHours < 24) return `${diffInHours}h`;
     if (diffInHours < 48) return "ontem";
-    return date.toLocaleDateString("pt-BR", { 
-      day: "numeric", 
-      month: "short" 
+    return date.toLocaleDateString("pt-BR", {
+      day: "numeric",
+      month: "short",
     });
   };
 
@@ -53,18 +63,24 @@ export default function ReviewCard({ review, onLike }) {
   }
 
   return (
-    <Card className="review-card" style={{ 
-      border: "2px solid var(--gray-a6)", 
-      borderRadius: "16px",
-      padding: "20px"
-    }}>
+    <Card
+      className="review-card"
+      style={{
+        borderRadius: "12px",
+        padding: "20px",
+      }}
+    >
       <Flex direction="column" gap="4">
         {/* Header com jogo e temporada */}
-        <Link href={`/jogos/${review.jogo.slug}`} style={{ textDecoration: "none" }}>
+        <Link
+          href={`/jogos/${review.jogo.slug}`}
+          style={{ textDecoration: "none" }}
+        >
           <Box style={{ cursor: "pointer" }}>
             <Flex justify="between" align="center" mb="3">
               <Text size="2" color="gray" weight="medium">
-                {review.jogo.temporada} • {new Date(review.jogo.data_jogo).toLocaleDateString("pt-BR")}
+                {review.jogo.temporada} •{" "}
+                {new Date(review.jogo.data_jogo).toLocaleDateString("pt-BR")}
               </Text>
               <Flex align="center" gap="1">
                 <StarIcon
@@ -81,30 +97,39 @@ export default function ReviewCard({ review, onLike }) {
                 </Text>
               </Flex>
             </Flex>
-            
-            {/* Jogo info compacta */}
-            <Flex justify="between" align="center" p="3" style={{ 
-              backgroundColor: "var(--gray-a2)", 
-              borderRadius: "12px",
-              border: "1px solid var(--gray-a4)"
-            }}>
+
+            <Flex
+              justify="between"
+              align="center"
+              p="3"
+              style={{
+                backgroundColor: "var(--gray-a2)",
+                borderRadius: "8px",
+              }}
+            >
               <Flex align="center" gap="3">
                 <Avatar
                   src={review.jogo.time_casa.logo_url}
                   fallback={review.jogo.time_casa.sigla}
                   size="2"
                 />
-                <Text weight="bold" size="3">{review.jogo.time_casa.sigla}</Text>
+                <Text weight="bold" size="3">
+                  {review.jogo.time_casa.sigla}
+                </Text>
               </Flex>
               <Box style={{ textAlign: "center" }}>
                 <Flex align="center" gap="2">
                   <Heading size="5">{review.jogo.placar_casa}</Heading>
-                  <Text size="3" color="gray">X</Text>
+                  <Text size="3" color="gray">
+                    X
+                  </Text>
                   <Heading size="5">{review.jogo.placar_visitante}</Heading>
                 </Flex>
               </Box>
               <Flex align="center" gap="3">
-                <Text weight="bold" size="3">{review.jogo.time_visitante.sigla}</Text>
+                <Text weight="bold" size="3">
+                  {review.jogo.time_visitante.sigla}
+                </Text>
                 <Avatar
                   src={review.jogo.time_visitante.logo_url}
                   fallback={review.jogo.time_visitante.sigla}
@@ -129,9 +154,9 @@ export default function ReviewCard({ review, onLike }) {
           />
           <Box style={{ flex: 1 }}>
             <Flex align="center" gap="2" mb="2">
-              <Text 
-                weight="bold" 
-                size="3" 
+              <Text
+                weight="bold"
+                size="3"
                 style={{ cursor: "pointer" }}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -152,10 +177,7 @@ export default function ReviewCard({ review, onLike }) {
           </Box>
         </Flex>
 
-        {/* Ações (curtir, comentar) */}
-        <Flex justify="start" align="center" gap="4" pt="2" style={{ 
-          borderTop: "1px solid var(--gray-a4)" 
-        }}>
+        <Flex justify="start" align="center" gap="4" pt="2">
           <Button
             variant="ghost"
             size="2"
@@ -163,22 +185,27 @@ export default function ReviewCard({ review, onLike }) {
             disabled={isLiking}
             style={{
               color: review.ja_curtiu ? "var(--red-9)" : "var(--gray-11)",
-              cursor: "pointer"
+              cursor: "pointer",
             }}
           >
-            <HeartIcon 
-              width="16" 
-              height="16" 
-              style={{ 
-                fill: review.ja_curtiu ? "var(--red-9)" : "transparent",
-                stroke: review.ja_curtiu ? "var(--red-9)" : "currentColor"
-              }}
-            />
+            {review.ja_curtiu ? (
+              <HeartFilledIcon
+                width="16"
+                height="16"
+                color="var(--red-9)"
+              />
+            ) : (
+              <HeartIcon
+                width="16"
+                height="16"
+              />
+            )}
             <Text size="2">{review.total_curtidas}</Text>
           </Button>
           <Button
             variant="ghost"
             size="2"
+            onClick={() => router.push(`/jogos/${review.jogo.slug}?review=${review.id}`)}
             style={{ color: "var(--gray-11)", cursor: "pointer" }}
           >
             <ChatBubbleIcon width="16" height="16" />

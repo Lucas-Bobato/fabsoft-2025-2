@@ -2,17 +2,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import api from "@/services/api";
-import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import {
-  StarIcon,
-  Share2Icon,
-  Pencil2Icon,
-  HeartIcon,
-  ChatBubbleIcon,
-  TrashIcon,
-} from "@radix-ui/react-icons";
+import { StarIcon, Share2Icon, Pencil2Icon } from "@radix-ui/react-icons";
 import {
   Heart,
   PencilLine,
@@ -32,7 +24,6 @@ import {
   Megaphone,
   ShieldCheck,
   Globe,
-  Zap,
   Shield,
   ChartNoAxesColumn,
 } from "lucide-react";
@@ -47,48 +38,60 @@ import {
   Link as RadixLink,
   Tabs,
   Spinner,
-  Dialog,
   IconButton,
   Grid,
 } from "@radix-ui/themes";
-import AchievementCard from "@/components/AchievementCard";
 import FollowModal from "@/components/FollowModal";
 import EditProfileModal from "@/components/EditProfileModal";
 import { teamColors } from "@/utils/teamColors";
+
+// Function to get profile image URL
+const getProfileImageUrl = (photoUrl) => {
+  return photoUrl || "/placeholder.png";
+};
 
 // Componente interno para a barra de distribuição de notas (vertical como no print)
 const VerticalRatingBar = ({ rating, count, maxCount, color }) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const heightPercentage = maxCount > 0 ? (count / maxCount) * 100 : 0;
-  
+
   return (
-    <Box 
-      position="relative" 
+    <Box
+      position="relative"
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
-      style={{ cursor: 'pointer' }}
+      style={{ cursor: "pointer" }}
     >
-      <Flex direction="column" align="center" justify="end" style={{ height: '200px' }}>
+      <Flex
+        direction="column"
+        align="center"
+        justify="end"
+        style={{ height: "200px" }}
+      >
         {/* Barra colorida */}
         <Box
           style={{
-            width: '20px',
+            width: "20px",
             height: `${Math.max(heightPercentage * 1.5, 5)}px`, // mínimo 5px para visibilidade
             backgroundColor: color,
-            borderRadius: '4px 4px 0 0',
-            marginBottom: '8px',
-            transition: 'height 0.3s ease'
+            borderRadius: "4px 4px 0 0",
+            marginBottom: "8px",
+            transition: "height 0.3s ease",
           }}
         />
         {/* Label da nota */}
         <Flex align="center" gap="1">
-          <Text size="2" weight="bold">{rating}</Text>
+          <Text size="2" weight="bold">
+            {rating}
+          </Text>
           <StarIcon width="12" height="12" />
         </Flex>
         {/* Contador */}
-        <Text size="1" color="gray" mt="1">{count}</Text>
+        <Text size="1" color="gray" mt="1">
+          {count}
+        </Text>
       </Flex>
-      
+
       {/* Tooltip */}
       {showTooltip && (
         <Box
@@ -96,21 +99,23 @@ const VerticalRatingBar = ({ rating, count, maxCount, color }) => {
           top="-45px"
           left="50%"
           style={{
-            transform: 'translateX(-50%)',
-            backgroundColor: '#2a2a2a',
-            color: 'white',
-            padding: '6px 10px',
-            borderRadius: '6px',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            whiteSpace: 'nowrap',
+            transform: "translateX(-50%)",
+            backgroundColor: "#2a2a2a",
+            color: "white",
+            padding: "6px 10px",
+            borderRadius: "6px",
+            fontSize: "14px",
+            fontWeight: "bold",
+            whiteSpace: "nowrap",
             zIndex: 10,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
           }}
         >
           {rating} ★
           <br />
-          <span style={{ fontSize: '12px', fontWeight: 'normal' }}>{count}</span>
+          <span style={{ fontSize: "12px", fontWeight: "normal" }}>
+            {count}
+          </span>
         </Box>
       )}
     </Box>
@@ -436,11 +441,16 @@ export default function ProfilePage() {
               <Heading as="h1" size="6">
                 {profile.nome_completo || profile.username}
               </Heading>
-              <Text as="p" color="gray" mb="2">
+              <Text as="p" color="gray" size="3">
                 @{profile.username}
               </Text>
               {profile.bio && (
-                <Text as="p" size="3" style={{ maxWidth: "400px" }}>
+                <Text
+                  as="p"
+                  size="3"
+                  mt="3"
+                  style={{ maxWidth: "500px", lineHeight: "1.5" }}
+                >
                   {profile.bio}
                 </Text>
               )}
@@ -514,12 +524,7 @@ export default function ProfilePage() {
               {/* Primeira linha de estatísticas */}
               <Grid columns={{ initial: "2", sm: "3", md: "5" }} gap="4">
                 {/* Avaliações */}
-                <Card
-                  style={{
-                    backgroundColor: "var(--gray-2)",
-                    border: "1px solid var(--gray-6)",
-                  }}
-                >
+                <Card style={{ backgroundColor: "var(--gray-2)" }}>
                   <Flex direction="column" align="center" p="4">
                     <FileText size={20} color="var(--blue-9)" />
                     <Text size="5" weight="bold" mt="2">
@@ -532,12 +537,7 @@ export default function ProfilePage() {
                 </Card>
 
                 {/* Média Geral */}
-                <Card
-                  style={{
-                    backgroundColor: "var(--gray-2)",
-                    border: "1px solid var(--gray-6)",
-                  }}
-                >
+                <Card style={{ backgroundColor: "var(--gray-2)" }}>
                   <Flex direction="column" align="center" p="4">
                     <Star size={20} color="var(--amber-9)" />
                     <Text size="5" weight="bold" mt="2">
@@ -550,12 +550,7 @@ export default function ProfilePage() {
                 </Card>
 
                 {/* Time Mais Avaliado */}
-                <Card
-                  style={{
-                    backgroundColor: "var(--gray-2)",
-                    border: "1px solid var(--gray-6)",
-                  }}
-                >
+                <Card style={{ backgroundColor: "var(--gray-2)" }}>
                   <Flex direction="column" align="center" p="4" gap="2">
                     <ChartNoAxesColumn size={20} color="#000000" />
                     <Text size="4" weight="bold">
@@ -581,12 +576,7 @@ export default function ProfilePage() {
                 </Card>
 
                 {/* Time Melhor Ataque */}
-                <Card
-                  style={{
-                    backgroundColor: "var(--gray-2)",
-                    border: "1px solid var(--gray-6)",
-                  }}
-                >
+                <Card style={{ backgroundColor: "var(--gray-2)" }}>
                   <Flex direction="column" align="center" p="4" gap="2">
                     <Swords size={20} color="#F97316" />
                     <Text size="4" weight="bold">
@@ -613,12 +603,7 @@ export default function ProfilePage() {
                 </Card>
 
                 {/* Time Melhor Defesa */}
-                <Card
-                  style={{
-                    backgroundColor: "var(--gray-2)",
-                    border: "1px solid var(--gray-6)",
-                  }}
-                >
+                <Card style={{ backgroundColor: "var(--gray-2)" }}>
                   <Flex direction="column" align="center" p="4" gap="2">
                     <Shield size={20} color="var(--blue-9)" />
                     <Text size="4" weight="bold">
@@ -650,12 +635,7 @@ export default function ProfilePage() {
                 {/* Coluna esquerda - MVP e Decepção */}
                 <Flex direction="column" gap="4">
                   {/* MVP Mais Votado */}
-                  <Card
-                    style={{
-                      backgroundColor: "var(--green-2)",
-                      border: "1px solid var(--green-6)",
-                    }}
-                  >
+                  <Card style={{ backgroundColor: "var(--green-2)" }}>
                     {stats.mvp_mais_votado && stats.mvp_mais_votado.jogador ? (
                       <Flex align="center" p="4" gap="4">
                         <Avatar
@@ -729,12 +709,7 @@ export default function ProfilePage() {
                   </Card>
 
                   {/* Decepção Mais Votada */}
-                  <Card
-                    style={{
-                      backgroundColor: "var(--red-2)",
-                      border: "1px solid var(--red-6)",
-                    }}
-                  >
+                  <Card style={{ backgroundColor: "var(--red-2)" }}>
                     {stats.decepcao_mais_votada &&
                     stats.decepcao_mais_votada.jogador ? (
                       <Flex align="center" p="4" gap="4">

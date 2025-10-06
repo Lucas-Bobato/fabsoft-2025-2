@@ -57,7 +57,7 @@ const GameDetailsHeader = ({ game }) => (
   </Box>
 );
 
-const StatsTabs = ({ game, reviews, onDataChange }) => {
+const StatsTabs = ({ game, reviews, onDataChange, highlightReviewId }) => {
   return (
     <Box>
       <Tabs.Root defaultValue="reviews">
@@ -75,7 +75,11 @@ const StatsTabs = ({ game, reviews, onDataChange }) => {
         
         <Box pt="4">
           <Tabs.Content value="reviews">
-            <ReviewsList reviews={reviews} onDataChange={onDataChange} />
+            <ReviewsList 
+              reviews={reviews} 
+              onDataChange={onDataChange} 
+              highlightReviewId={highlightReviewId}
+            />
           </Tabs.Content>
           <Tabs.Content value="boxscore">
             <BoxScore gameId={game.id} />
@@ -165,7 +169,7 @@ export default function GameDetailsPage() {
             <Button
               onClick={() => setIsModalOpen(true)}
               size="4"
-              style={{ 
+              style={{
                 backgroundColor: "#8B1E3F",
                 width: "100%"
               }}
@@ -176,7 +180,12 @@ export default function GameDetailsPage() {
             </Button>
           )}
 
-          <StatsTabs game={game} reviews={reviews} onDataChange={fetchGameData} />
+          <StatsTabs 
+            game={game}
+            reviews={reviews}
+            onDataChange={fetchGameData}
+            highlightReviewId={searchParams.get("review")}
+          />
         </Flex>
 
         {isModalOpen && (

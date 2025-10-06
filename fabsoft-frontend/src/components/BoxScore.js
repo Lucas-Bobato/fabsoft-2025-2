@@ -36,7 +36,10 @@ export default function BoxScore({ gameId }) {
 
   const renderPlayerStats = (players) =>
     players.map((player) => (
-      <tr key={player.player_id} className="border-b border-gray-800 text-sm">
+      <tr
+        key={player.player_id}
+        style={{ borderBottom: "1px solid var(--gray-a4)" }}
+      >
         <td className="p-2 font-semibold">{player.player_name}</td>
         <td className="p-2">{player.minutes}</td>
         <td className="p-2">{player.points}</td>
@@ -53,12 +56,22 @@ export default function BoxScore({ gameId }) {
         </h3>
         <table className="w-full text-left">
           <thead>
-            <tr className="text-xs text-gray-400 border-b border-gray-700">
-              <th className="p-2">JOGADOR</th>
-              <th className="p-2">MIN</th>
-              <th className="p-2">PTS</th>
-              <th className="p-2">REB</th>
-              <th className="p-2">AST</th>
+            <tr style={{ borderBottom: "1px solid var(--gray-a5)" }}>
+              <th className="p-2 text-xs" style={{ color: "var(--gray-11)" }}>
+                JOGADOR
+              </th>
+              <th className="p-2 text-xs" style={{ color: "var(--gray-11)" }}>
+                MIN
+              </th>
+              <th className="p-2 text-xs" style={{ color: "var(--gray-11)" }}>
+                PTS
+              </th>
+              <th className="p-2 text-xs" style={{ color: "var(--gray-11)" }}>
+                REB
+              </th>
+              <th className="p-2 text-xs" style={{ color: "var(--gray-11)" }}>
+                AST
+              </th>
             </tr>
           </thead>
           <tbody>{renderPlayerStats(boxScore.away_team.players)}</tbody>
@@ -70,12 +83,22 @@ export default function BoxScore({ gameId }) {
         </h3>
         <table className="w-full text-left">
           <thead>
-            <tr className="text-xs text-gray-400 border-b border-gray-700">
-              <th className="p-2">JOGADOR</th>
-              <th className="p-2">MIN</th>
-              <th className="p-2">PTS</th>
-              <th className="p-2">REB</th>
-              <th className="p-2">AST</th>
+            <tr style={{ borderBottom: "1px solid var(--gray-a5)" }}>
+              <th className="p-2 text-xs" style={{ color: "var(--gray-11)" }}>
+                JOGADOR
+              </th>
+              <th className="p-2 text-xs" style={{ color: "var(--gray-11)" }}>
+                MIN
+              </th>
+              <th className="p-2 text-xs" style={{ color: "var(--gray-11)" }}>
+                PTS
+              </th>
+              <th className="p-2 text-xs" style={{ color: "var(--gray-11)" }}>
+                REB
+              </th>
+              <th className="p-2 text-xs" style={{ color: "var(--gray-11)" }}>
+                AST
+              </th>
             </tr>
           </thead>
           <tbody>{renderPlayerStats(boxScore.home_team.players)}</tbody>
@@ -83,17 +106,17 @@ export default function BoxScore({ gameId }) {
       </div>
       <div>
         <h3 className="text-lg font-bold mb-2">Play-by-Play</h3>
-        <div className="max-h-96 overflow-y-auto">
+        <div className="max-h-96 overflow-y-auto custom-scroll-modal">
           <table className="w-full text-left">
             <tbody>
               {boxScore.play_by_play.map((play) => (
                 <tr
                   key={play.event_num}
-                  className="border-b border-gray-800 text-sm"
+                  style={{ borderBottom: "1px solid var(--gray-a4)" }}
                 >
-                  <td className="p-2">{play.clock}</td>
-                  <td className="p-2">{play.period}</td>
-                  <td className="p-2">{play.description}</td>
+                  <td className="p-2 text-sm">{play.clock}</td>
+                  <td className="p-2 text-sm">{play.period}</td>
+                  <td className="p-2 text-sm">{play.description}</td>
                 </tr>
               ))}
             </tbody>

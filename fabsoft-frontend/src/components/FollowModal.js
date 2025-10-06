@@ -29,6 +29,7 @@ export default function FollowModal({ title, users, onClose, onFollowToggle }) {
           gap="4"
           mt="4"
           style={{ maxHeight: "60vh", overflowY: "auto" }}
+          className="custom-scroll-modal"
         >
           {users.length > 0 ? (
             users.map((user) => (

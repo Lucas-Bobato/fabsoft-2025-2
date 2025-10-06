@@ -208,8 +208,8 @@ def create_avaliacao_for_jogo(
     ).first()
     if db_avaliacao_existente:
         raise HTTPException(
-            status_code=400,
-            detail="Você já avaliou este jogo."
+            status_code=409,
+            detail="Você já avaliou este jogo. Atualize a avaliação existente em vez de criar uma nova."
         )
 
     return crud.create_avaliacao_jogo(db=db, avaliacao=avaliacao, usuario_id=current_user.id, jogo_id=jogo_id)

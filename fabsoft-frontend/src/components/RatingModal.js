@@ -2,21 +2,27 @@
 import { useState, useEffect } from "react";
 import api from "@/services/api";
 import ColorRating from "./ColorRating";
-import { Star, Shield, Swords, Drum, X, Trophy, ThumbsDown } from "lucide-react";
+import {
+  Star,
+  Shield,
+  Swords,
+  Drum,
+  X,
+  Trophy,
+  ThumbsDown,
+} from "lucide-react";
 import {
   Dialog,
   Box,
   Flex,
   Grid,
-  Heading,
   Text,
   Button,
   TextArea,
   Avatar,
   Card,
-  Badge,
-  ScrollArea,
 } from "@radix-ui/themes";
+import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 
 const WhistleIcon = (props) => (
   <svg {...props} fill="currentColor" viewBox="0 0 256 256">
@@ -66,6 +72,29 @@ export default function RatingModal({
     teamId: null,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState(null);
+
+  const translateErrorMessage = (message) => {
+    if (!message || typeof message !== "string") {
+      return message;
+    }
+
+    const normalized = message.toLowerCase();
+
+    if (normalized.includes("greater than or equal to 0.5")) {
+      return "A nota deve ser pelo menos 0,5.";
+    }
+
+    if (normalized.includes("less than or equal to 5")) {
+      return "A nota não pode ser maior que 5.";
+    }
+
+    if (normalized.includes("field required")) {
+      return "Preencha todos os campos obrigatórios.";
+    }
+
+    return message;
+  };
 
   useEffect(() => {
     if (!currentGame?.time_casa?.id || !currentGame?.time_visitante?.id) return;
@@ -106,6 +135,7 @@ export default function RatingModal({
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    setFormError(null);
     try {
       const dataToSend = { ...reviewData };
 
@@ -118,7 +148,53 @@ export default function RatingModal({
       closeModal();
     } catch (error) {
       console.error("Erro ao enviar avaliação:", error);
-      alert("Houve um erro ao enviar sua avaliação. Tente novamente.");
+      const response = error?.response;
+      const status = response?.status;
+      const detail = response?.data?.detail;
+      let errorMessage = "Houve um erro ao enviar sua avaliação. Tente novamente.";
+
+      if (status === 409 || (typeof detail === "string" && detail.toLowerCase().includes("já avaliou"))) {
+        errorMessage =
+          detail ||
+          "Você já avaliou este jogo. Edite a sua avaliação existente em vez de criar uma nova.";
+      } else if (status === 400 || status === 422) {
+        if (Array.isArray(detail)) {
+          const messages = detail
+            .map((item) => {
+              if (typeof item === "string") return item;
+              if (item?.msg) return item.msg;
+              if (item?.message) return item.message;
+              return null;
+            })
+            .filter(Boolean)
+            .map(translateErrorMessage);
+
+          errorMessage = messages.join("\n");
+        } else if (typeof detail === "string") {
+          errorMessage = translateErrorMessage(detail);
+        } else if (detail?.message) {
+          errorMessage = translateErrorMessage(detail.message);
+        }
+      } else if (typeof detail === "string" && detail.trim().length > 0) {
+        errorMessage = translateErrorMessage(detail);
+      } else if (status >= 500) {
+        errorMessage = "Ocorreu um problema no servidor. Tente novamente em instantes.";
+      }
+
+      setFormError(translateErrorMessage(errorMessage) || errorMessage);
+      
+      // Scroll automático para o topo do modal quando há erro
+      setTimeout(() => {
+        const modalContent = document.querySelector('[role="dialog"]');
+        if (modalContent) {
+          modalContent.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        // Também tenta fazer scroll no viewport do ScrollArea
+        const scrollViewport = document.querySelector('.rating-scroll-viewport');
+        if (scrollViewport) {
+          scrollViewport.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }, 100);
     } finally {
       setIsSubmitting(false);
     }
@@ -134,416 +210,545 @@ export default function RatingModal({
   // Função para encontrar jogador em todos os rosters
   const findPlayerById = (playerId) => {
     const allPlayers = [...rosters.home, ...rosters.away];
-    return allPlayers.find(p => p.id === playerId);
+    return allPlayers.find((p) => p.id === playerId);
   };
 
   return (
-    <Dialog.Root open={true}>
-      <Dialog.Content 
-        style={{ maxWidth: '768px', maxHeight: '90vh' }}
+    <Dialog.Root open modal>
+      <Dialog.Content
+        style={{
+          maxWidth: "768px",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          position: "relative",
+        }}
         onEscapeKeyDown={closeModal}
         onPointerDownOutside={closeModal}
       >
-        <Box position="relative">
-          <Button
-            variant="ghost"
-            onClick={closeModal}
-            style={{ 
-              position: 'absolute', 
-              top: '8px', 
-              right: '8px',
-              cursor: 'pointer'
-            }}
-            size="1"
-          >
-            <X size={20} />
-          </Button>
-          
-          <Heading size="6" align="center" mb="6">
-            {isEditMode ? "Editar Avaliação" : "Sua Avaliação"}
-          </Heading>
+        <Dialog.Title size="6" align="center" mb="6">
+          {isEditMode ? "Editar Avaliação" : "Sua Avaliação"}
+        </Dialog.Title>
 
-          <ScrollArea style={{ maxHeight: '70vh' }}>
-            <Flex direction="column" gap="6">
-              <Box style={{ textAlign: 'center' }}>
-                <Text size="2" weight="medium" mb="2" as="div">
-                  Nota da Partida
-                </Text>
-                <ColorRating
-                  initialValue={reviewData.nota_geral}
-                  onRatingChange={(value) =>
-                    handleRatingChange("nota_geral", value)
-                  }
-                  icon={Star}
-                  colorClass="text-yellow-400"
-                />
-              </Box>
+        <Button
+          variant="ghost"
+          onClick={closeModal}
+          aria-label="Fechar"
+          style={{
+            position: "absolute",
+            top: "var(--space-4)",
+            right: "var(--space-4)",
+            cursor: "pointer",
+          }}
+          size="1"
+        >
+          <X size={20} />
+        </Button>
 
-              <Box>
-                <Text size="2" weight="medium" mb="2" as="div">
-                  Sua Resenha
-                </Text>
-                <TextArea
-                  placeholder="O que você achou do jogo?"
-                  value={reviewData.resenha}
-                  onChange={(e) => handleRatingChange("resenha", e.target.value)}
-                  rows={3}
-                />
-              </Box>
-
-              <Grid columns={{ initial: "1", md: "2" }} gap="4">
-                <Card variant="surface" size="2">
-                  <Flex direction="column" align="center" gap="3" p="4">
-                    <Text weight="bold">{currentGame.time_visitante.nome}</Text>
-                    <Box>
-                      <Text size="1" color="gray" weight="bold" as="div">ATAQUE</Text>
-                      <ColorRating
-                        initialValue={reviewData.nota_ataque_visitante}
-                        onRatingChange={(value) =>
-                          handleRatingChange("nota_ataque_visitante", value)
-                        }
-                        icon={Swords}
-                        colorClass="text-[#F97316]"
-                      />
-                    </Box>
-                    <Box>
-                      <Text size="1" color="gray" weight="bold" as="div">DEFESA</Text>
-                      <ColorRating
-                        initialValue={reviewData.nota_defesa_visitante}
-                        onRatingChange={(value) =>
-                          handleRatingChange("nota_defesa_visitante", value)
-                        }  
-                        icon={Shield}
-                        colorClass="text-blue-500"
-                      />
-                    </Box>
-                  </Flex>
-                </Card>
-                
-                <Card variant="surface" size="2">
-                  <Flex direction="column" align="center" gap="3" p="4">
-                    <Text weight="bold">{currentGame.time_casa.nome}</Text>
-                    <Box>
-                      <Text size="1" color="gray" weight="bold" as="div">ATAQUE</Text>
-                      <ColorRating
-                        initialValue={reviewData.nota_ataque_casa}
-                        onRatingChange={(value) =>
-                          handleRatingChange("nota_ataque_casa", value)
-                        }
-                        icon={Swords}
-                        colorClass="text-[#F97316]"
-                      />
-                    </Box>
-                    <Box>
-                      <Text size="1" color="gray" weight="bold" as="div">DEFESA</Text>
-                      <ColorRating
-                        initialValue={reviewData.nota_defesa_casa}
-                        onRatingChange={(value) =>
-                          handleRatingChange("nota_defesa_casa", value)
-                        }
-                        icon={Shield}
-                        colorClass="text-blue-500"
-                      />
-                    </Box>
-                  </Flex>
-                </Card>
-              </Grid>
-
-              <Card variant="surface" size="2">
-                <Grid columns="2" gap="4" p="4">
-                  <Flex direction="column" align="center" gap="2">
-                    <Text size="2" weight="bold">ARBITRAGEM</Text>
-                    <ColorRating
-                      initialValue={reviewData.nota_arbitragem}
-                      onRatingChange={(value) =>
-                        handleRatingChange("nota_arbitragem", value)
-                      }
-                      icon={WhistleIcon}
-                      colorClass="text-red-500"
-                    />
-                  </Flex>
-                  <Flex direction="column" align="center" gap="2">
-                    <Text size="2" weight="bold">ATMOSFERA</Text>
-                    <ColorRating
-                      initialValue={reviewData.nota_atmosfera}
-                      onRatingChange={(value) =>
-                        handleRatingChange("nota_atmosfera", value)
-                      }
-                      icon={Drum}
-                      colorClass="text-orange-400"
-                    />
-                  </Flex>
-                </Grid>
-              </Card>
-
-              <Box>
-                <Text size="2" weight="medium" mb="3" as="div">
-                  Jogadores da Partida
-                </Text>
-                
-                {/* Indicadores dos jogadores selecionados */}
-                <Grid columns="2" gap="3" mb="3">
-                  <Card variant="surface" size="2">
-                    <Flex direction="column" align="center" gap="2" p="3">
-                      <Flex align="center" gap="2">
-                        <Trophy size={16} color="var(--green-9)" />
-                        <Text size="2" weight="bold" color="green">
-                          MVP da Partida
-                        </Text>
-                      </Flex>
-                      {reviewData.melhor_jogador_id ? (
-                        (() => {
-                          const mvpPlayer = findPlayerById(reviewData.melhor_jogador_id);
-                          return mvpPlayer ? (
-                            <Flex align="center" gap="2">
-                              <Avatar
-                                src={mvpPlayer.foto_url || "/placeholder.png"}
-                                alt="MVP"
-                                size="2"
-                                fallback={mvpPlayer.nome.split(' ').map(n => n[0]).join('')}
-                              />
-                              <Text size="2" weight="medium">
-                                {mvpPlayer.nome}
-                              </Text>
-                            </Flex>
-                          ) : (
-                            <Text size="1" color="gray">
-                              Jogador não encontrado
-                            </Text>
-                          );
-                        })()
-                      ) : (
-                        <Text size="1" color="gray">
-                          Nenhum jogador selecionado
-                        </Text>
-                      )}
-                    </Flex>
-                  </Card>
-                  
-                  <Card variant="surface" size="2">
-                    <Flex direction="column" align="center" gap="2" p="3">
-                      <Flex align="center" gap="2">
-                        <ThumbsDown size={16} color="var(--red-9)" />
-                        <Text size="2" weight="bold" color="red">
-                          Decepção
-                        </Text>
-                      </Flex>
-                      {reviewData.pior_jogador_id ? (
-                        (() => {
-                          const worstPlayer = findPlayerById(reviewData.pior_jogador_id);
-                          return worstPlayer ? (
-                            <Flex align="center" gap="2">
-                              <Avatar
-                                src={worstPlayer.foto_url || "/placeholder.png"}
-                                alt="Decepção"
-                                size="2"
-                                fallback={worstPlayer.nome.split(' ').map(n => n[0]).join('')}
-                              />
-                              <Text size="2" weight="medium">
-                                {worstPlayer.nome}
-                              </Text>
-                            </Flex>
-                          ) : (
-                            <Text size="1" color="gray">
-                              Jogador não encontrado
-                            </Text>
-                          );
-                        })()
-                      ) : (
-                        <Text size="1" color="gray">
-                          Nenhum jogador selecionado
-                        </Text>
-                      )}
-                    </Flex>
-                  </Card>
-                </Grid>
-
-                <Card variant="surface" size="1" mb="3">
-                  <Flex gap="1" p="1">
-                    <Button
-                      variant={playerSelection.mode === "best" ? "solid" : "soft"}
-                      color="green"
-                      style={{ flex: 1 }}
-                      onClick={() =>
-                        setPlayerSelection((p) => ({ ...p, mode: "best" }))
-                      }
-                    >
-                      <Trophy size={16} />
-                      Selecionar MVP
-                    </Button>
-                    <Button
-                      variant={playerSelection.mode === "worst" ? "solid" : "soft"}
-                      color="red"
-                      style={{ flex: 1 }}
-                      onClick={() =>
-                        setPlayerSelection((p) => ({ ...p, mode: "worst" }))
-                      }
-                    >
-                      <ThumbsDown size={16} />
-                      Selecionar Decepção
-                    </Button>
-                  </Flex>
-                </Card>
-                <Flex align="center" gap="2" mb="2">
-                  {playerSelection.mode === "best" ? (
-                    <Trophy size={16} color="var(--green-9)" />
-                  ) : (
-                    <ThumbsDown size={16} color="var(--red-9)" />
-                  )}
-                  <Text size="2" color="gray">
-                    {playerSelection.mode === "best" 
-                      ? "Escolha o MVP do time:" 
-                      : "Escolha a decepção do time:"
-                    }
+        <Box
+          position="relative"
+          className="custom-scroll-modal"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {formError && (
+            <Box
+              role="alert"
+              mb="3"
+              px="3"
+              py="2"
+              style={{
+                borderRadius: "8px",
+                backgroundColor: "var(--red-3)",
+                border: "1px solid var(--red-6)",
+                color: "var(--red-11)",
+              }}
+            >
+              <Flex direction="column" gap="1">
+                {formError.split("\n").map((line, index) => (
+                  <Text key={`${line}-${index}`} size="2" weight="medium">
+                    {line}
                   </Text>
-                </Flex>
-                
-                <Flex gap="2" mb="3">
-                  <Button
-                    variant={
-                      playerSelection.teamId === currentGame.time_visitante.id
-                        ? "solid"
-                        : "outline"
-                    }
-                    color={
-                      playerSelection.teamId === currentGame.time_visitante.id
-                        ? playerSelection.mode === "best"
-                          ? "green"
-                          : "red"
-                        : "gray"
-                    }
-                    style={{ flex: 1 }}
-                    onClick={() =>
-                      setPlayerSelection((p) => ({
-                        ...p,
-                        teamId: currentGame.time_visitante.id,
-                      }))
-                    }
-                  >
-                    <Avatar
-                      src={currentGame.time_visitante.logo_url}
-                      alt={currentGame.time_visitante.nome}
-                      size="1"
-                      fallback={currentGame.time_visitante.sigla}
-                    />
-                    {currentGame.time_visitante.nome}
-                  </Button>
-                  <Button
-                    variant={
-                      playerSelection.teamId === currentGame.time_casa.id
-                        ? "solid"
-                        : "outline"
-                    }
-                    color={
-                      playerSelection.teamId === currentGame.time_casa.id
-                        ? playerSelection.mode === "best"
-                          ? "green"
-                          : "red"
-                        : "gray"
-                    }
-                    style={{ flex: 1 }}
-                    onClick={() =>
-                      setPlayerSelection((p) => ({
-                        ...p,
-                        teamId: currentGame.time_casa.id,
-                      }))
-                    }
-                  >
-                    <Avatar
-                      src={currentGame.time_casa.logo_url}
-                      alt={currentGame.time_casa.nome}
-                      size="1"
-                      fallback={currentGame.time_casa.sigla}
-                    />
-                    {currentGame.time_casa.nome}
-                  </Button>
-                </Flex>
-                <Card variant="surface" size="2">
-                  <ScrollArea style={{ maxHeight: "200px" }}>
-                    {currentRoster.length > 0 ? (
-                      <Flex direction="column" gap="1" p="2">
-                        {currentRoster.map((player) => {
-                          const isSelected = reviewData.melhor_jogador_id === player.id || reviewData.pior_jogador_id === player.id;
-                          const isMVP = reviewData.melhor_jogador_id === player.id;
-                          const isWorst = reviewData.pior_jogador_id === player.id;
-                          
-                          return (
-                            <Box
-                              key={player.id}
-                              onClick={() => handlePlayerSelect(player.id)}
-                              style={{
-                                cursor: "pointer",
-                                borderRadius: "8px",
-                                border: isSelected ? 
-                                  (isMVP ? "2px solid var(--green-9)" : "2px solid var(--red-9)") : 
-                                  "2px solid transparent",
-                                backgroundColor: isSelected ?
-                                  (isMVP ? "var(--green-2)" : "var(--red-2)") :
-                                  "transparent"
-                              }}
-                              p="2"
-                            >
-                              <Flex align="center" gap="3" justify="between">
-                                <Flex align="center" gap="3">
-                                  <Avatar
-                                    src={player.foto_url || "/placeholder.png"}
-                                    alt={player.nome}
-                                    size="3"
-                                    fallback={player.nome
-                                      .split(" ")
-                                      .map((n) => n[0])
-                                      .join("")}
-                                  />
-                                  <Text weight="medium">{player.nome}</Text>
-                                </Flex>
-                                {isSelected && (
-                                  <Box>
-                                    {isMVP ? (
-                                      <Trophy size={18} color="var(--green-9)" />
+                ))}
+              </Flex>
+            </Box>
+          )}
+
+          <div className="rating-modal-container">
+            <div className="rating-modal-content">
+              <ScrollAreaPrimitive.Root
+                className="rating-scroll-area rating-scroll-area-main"
+                type="auto"
+                scrollHideDelay={150}
+                style={{ flex: 1 }}
+              >
+                <ScrollAreaPrimitive.Viewport className="rating-scroll-viewport">
+                  <Flex direction="column" gap="6">
+                    <Box style={{ textAlign: "center" }}>
+                      <Text size="2" weight="medium" mb="2" as="div">
+                        Nota da Partida
+                      </Text>
+                      <ColorRating
+                        initialValue={reviewData.nota_geral}
+                        onRatingChange={(value) =>
+                          handleRatingChange("nota_geral", value)
+                        }
+                        icon={Star}
+                        colorClass="text-yellow-400"
+                      />
+                    </Box>
+
+                    <Box>
+                      <Text size="2" weight="medium" mb="2" as="div">
+                        Sua Resenha
+                      </Text>
+                      <TextArea
+                        placeholder="O que você achou do jogo?"
+                        value={reviewData.resenha}
+                        onChange={(e) =>
+                          handleRatingChange("resenha", e.target.value)
+                        }
+                        rows={3}
+                        className="custom-scroll-textarea"
+                      />
+                    </Box>
+
+                    <Grid columns={{ initial: "1", md: "2" }} gap="4">
+                      <Card variant="surface" size="2">
+                        <Flex direction="column" align="center" gap="3" p="4">
+                          <Text weight="bold">{currentGame.time_visitante.nome}</Text>
+                          <Box>
+                            <Text size="1" color="gray" weight="bold" as="div">
+                              ATAQUE
+                            </Text>
+                            <ColorRating
+                              initialValue={reviewData.nota_ataque_visitante}
+                              onRatingChange={(value) =>
+                                handleRatingChange("nota_ataque_visitante", value)
+                              }
+                              icon={Swords}
+                              colorClass="text-[#F97316]"
+                            />
+                          </Box>
+                          <Box>
+                            <Text size="1" color="gray" weight="bold" as="div">
+                              DEFESA
+                            </Text>
+                            <ColorRating
+                              initialValue={reviewData.nota_defesa_visitante}
+                              onRatingChange={(value) =>
+                                handleRatingChange("nota_defesa_visitante", value)
+                              }
+                              icon={Shield}
+                              colorClass="text-blue-500"
+                            />
+                          </Box>
+                        </Flex>
+                      </Card>
+
+                      <Card variant="surface" size="2">
+                        <Flex direction="column" align="center" gap="3" p="4">
+                          <Text weight="bold">{currentGame.time_casa.nome}</Text>
+                          <Box>
+                            <Text size="1" color="gray" weight="bold" as="div">
+                              ATAQUE
+                            </Text>
+                            <ColorRating
+                              initialValue={reviewData.nota_ataque_casa}
+                              onRatingChange={(value) =>
+                                handleRatingChange("nota_ataque_casa", value)
+                              }
+                              icon={Swords}
+                              colorClass="text-[#F97316]"
+                            />
+                          </Box>
+                          <Box>
+                            <Text size="1" color="gray" weight="bold" as="div">
+                              DEFESA
+                            </Text>
+                            <ColorRating
+                              initialValue={reviewData.nota_defesa_casa}
+                              onRatingChange={(value) =>
+                                handleRatingChange("nota_defesa_casa", value)
+                              }
+                              icon={Shield}
+                              colorClass="text-blue-500"
+                            />
+                          </Box>
+                        </Flex>
+                      </Card>
+                    </Grid>
+
+                    <Card variant="surface" size="2">
+                      <Grid columns="2" gap="4" p="4">
+                        <Flex direction="column" align="center" gap="2">
+                          <Text size="2" weight="bold">
+                            ARBITRAGEM
+                          </Text>
+                          <ColorRating
+                            initialValue={reviewData.nota_arbitragem}
+                            onRatingChange={(value) =>
+                              handleRatingChange("nota_arbitragem", value)
+                            }
+                            icon={WhistleIcon}
+                            colorClass="text-red-500"
+                          />
+                        </Flex>
+                        <Flex direction="column" align="center" gap="2">
+                          <Text size="2" weight="bold">
+                            ATMOSFERA
+                          </Text>
+                          <ColorRating
+                            initialValue={reviewData.nota_atmosfera}
+                            onRatingChange={(value) =>
+                              handleRatingChange("nota_atmosfera", value)
+                            }
+                            icon={Drum}
+                            colorClass="text-orange-400"
+                          />
+                        </Flex>
+                      </Grid>
+                    </Card>
+
+                    <Box>
+                      <Text size="2" weight="medium" mb="3" as="div">
+                        Jogadores da Partida
+                      </Text>
+
+                      {/* Indicadores dos jogadores selecionados */}
+                      <Grid columns="2" gap="3" mb="3">
+                        <Card variant="surface" size="2">
+                          <Flex direction="column" align="center" gap="2" p="3">
+                            <Flex align="center" gap="2">
+                              <Trophy size={16} color="var(--green-9)" />
+                              <Text size="2" weight="bold" color="green">
+                                MVP da Partida
+                              </Text>
+                            </Flex>
+                            {reviewData.melhor_jogador_id ? (
+                              (() => {
+                                const mvpPlayer = findPlayerById(
+                                  reviewData.melhor_jogador_id
+                                );
+                                return mvpPlayer ? (
+                                  <Flex align="center" gap="2">
+                                    <Avatar
+                                      src={mvpPlayer.foto_url || "/placeholder.png"}
+                                      alt="MVP"
+                                      size="2"
+                                      fallback={mvpPlayer.nome
+                                        .split(" ")
+                                        .map((n) => n[0])
+                                        .join("")}
+                                    />
+                                    <Text size="2" weight="medium">
+                                      {mvpPlayer.nome}
+                                    </Text>
+                                  </Flex>
+                                ) : (
+                                  <Text size="1" color="gray">
+                                    Jogador não encontrado
+                                  </Text>
+                                );
+                              })()
+                            ) : (
+                              <Text size="1" color="gray">
+                                Nenhum jogador selecionado
+                              </Text>
+                            )}
+                          </Flex>
+                        </Card>
+
+                        <Card variant="surface" size="2">
+                          <Flex direction="column" align="center" gap="2" p="3">
+                            <Flex align="center" gap="2">
+                              <ThumbsDown size={16} color="var(--red-9)" />
+                              <Text size="2" weight="bold" color="red">
+                                Decepção
+                              </Text>
+                            </Flex>
+                            {reviewData.pior_jogador_id ? (
+                              (() => {
+                                const worstPlayer = findPlayerById(
+                                  reviewData.pior_jogador_id
+                                );
+                                return worstPlayer ? (
+                                  <Flex align="center" gap="2">
+                                    <Avatar
+                                      src={worstPlayer.foto_url || "/placeholder.png"}
+                                      alt="Decepção"
+                                      size="2"
+                                      fallback={worstPlayer.nome
+                                        .split(" ")
+                                        .map((n) => n[0])
+                                        .join("")}
+                                    />
+                                    <Text size="2" weight="medium">
+                                      {worstPlayer.nome}
+                                    </Text>
+                                  </Flex>
+                                ) : (
+                                  <Text size="1" color="gray">
+                                    Jogador não encontrado
+                                  </Text>
+                                );
+                              })()
+                            ) : (
+                              <Text size="1" color="gray">
+                                Nenhum jogador selecionado
+                              </Text>
+                            )}
+                          </Flex>
+                        </Card>
+                      </Grid>
+
+                      <Card variant="surface" size="1" mb="3">
+                        <Flex gap="1" p="1">
+                          <Button
+                            variant={
+                              playerSelection.mode === "best" ? "solid" : "soft"
+                            }
+                            color="green"
+                            style={{ flex: 1 }}
+                            onClick={() =>
+                              setPlayerSelection((p) => ({ ...p, mode: "best" }))
+                            }
+                          >
+                            <Trophy size={16} />
+                            Selecionar MVP
+                          </Button>
+                          <Button
+                            variant={
+                              playerSelection.mode === "worst"
+                                ? "solid"
+                                : "soft"
+                            }
+                            color="red"
+                            style={{ flex: 1 }}
+                            onClick={() =>
+                              setPlayerSelection((p) => ({ ...p, mode: "worst" }))
+                            }
+                          >
+                            <ThumbsDown size={16} />
+                            Selecionar Decepção
+                          </Button>
+                        </Flex>
+                      </Card>
+                      <Flex align="center" gap="2" mb="2">
+                        {playerSelection.mode === "best" ? (
+                          <Trophy size={16} color="var(--green-9)" />
+                        ) : (
+                          <ThumbsDown size={16} color="var(--red-9)" />
+                        )}
+                        <Text size="2" color="gray">
+                          {playerSelection.mode === "best"
+                            ? "Escolha o MVP do time:"
+                            : "Escolha a decepção do time:"}
+                        </Text>
+                      </Flex>
+
+                      <Flex gap="2" mb="3">
+                        <Button
+                          variant={
+                            playerSelection.teamId === currentGame.time_visitante.id
+                              ? "solid"
+                              : "outline"
+                          }
+                          color={
+                            playerSelection.teamId ===
+                              currentGame.time_visitante.id &&
+                            playerSelection.mode === "best"
+                              ? "green"
+                              : playerSelection.teamId ===
+                                  currentGame.time_visitante.id &&
+                                playerSelection.mode === "worst"
+                              ? "red"
+                              : "gray"
+                          }
+                          style={{ flex: 1 }}
+                          onClick={() =>
+                            setPlayerSelection((p) => ({
+                              ...p,
+                              teamId: currentGame.time_visitante.id,
+                            }))
+                          }
+                        >
+                          <Avatar
+                            src={currentGame.time_visitante.logo_url}
+                            alt={currentGame.time_visitante.nome}
+                            size="1"
+                            fallback={currentGame.time_visitante.sigla}
+                          />
+                          {currentGame.time_visitante.nome}
+                        </Button>
+                        <Button
+                          variant={
+                            playerSelection.teamId === currentGame.time_casa.id
+                              ? "solid"
+                              : "outline"
+                          }
+                          color={
+                            playerSelection.teamId === currentGame.time_casa.id &&
+                            playerSelection.mode === "best"
+                              ? "green"
+                              : playerSelection.teamId === currentGame.time_casa.id &&
+                                playerSelection.mode === "worst"
+                              ? "red"
+                              : "gray"
+                          }
+                          style={{ flex: 1 }}
+                          onClick={() =>
+                            setPlayerSelection((p) => ({
+                              ...p,
+                              teamId: currentGame.time_casa.id,
+                            }))
+                          }
+                        >
+                          <Avatar
+                            src={currentGame.time_casa.logo_url}
+                            alt={currentGame.time_casa.nome}
+                            size="1"
+                            fallback={currentGame.time_casa.sigla}
+                          />
+                          {currentGame.time_casa.nome}
+                        </Button>
+                      </Flex>
+                      <Card variant="surface" size="2">
+                        <ScrollAreaPrimitive.Root
+                          className="rating-scroll-area rating-scroll-area-slim"
+                          type="scroll"
+                          scrollHideDelay={150}
+                          style={{ height: "250px", width: "100%" }}
+                        >
+                          <ScrollAreaPrimitive.Viewport className="rating-scroll-viewport rating-scroll-viewport-slim">
+                            <Flex direction="column" gap="1" p="2">
+                              {currentRoster.length > 0 ? (
+                                currentRoster.map((player) => {
+                                  const isSelected =
+                                    reviewData.melhor_jogador_id === player.id ||
+                                    reviewData.pior_jogador_id === player.id;
+                                  const isMVP =
+                                    reviewData.melhor_jogador_id === player.id;
+                                  const isWorst =
+                                    reviewData.pior_jogador_id === player.id;
+
+                                  return (
+                                    <Box
+                                      key={player.id}
+                                      onClick={() => handlePlayerSelect(player.id)}
+                                      style={{
+                                        cursor: "pointer",
+                                        borderRadius: "8px",
+                                        border: isSelected
+                                          ? isMVP
+                                            ? "2px solid var(--green-9)"
+                                            : "2px solid var(--red-9)"
+                                          : "2px solid transparent",
+                                        backgroundColor: isSelected
+                                          ? isMVP
+                                            ? "var(--green-2)"
+                                            : "var(--red-2)"
+                                          : "transparent",
+                                        transition:
+                                          "background-color 0.2s ease, border-color 0.2s ease",
+                                      }}
+                                      p="2"
+                                    >
+                                      <Flex align="center" gap="3" justify="between">
+                                        <Flex align="center" gap="3">
+                                          <Avatar
+                                            src={player.foto_url || "/placeholder.png"}
+                                            alt={player.nome}
+                                            size="3"
+                                            fallback={player.nome
+                                              .split(" ")
+                                              .map((n) => n[0])
+                                              .join("")}
+                                          />
+                                          <Text weight="medium">{player.nome}</Text>
+                                        </Flex>
+                                        {isSelected && (
+                                          <Box>
+                                            {isMVP ? (
+                                              <Trophy
+                                                size={18}
+                                                color="var(--green-9)"
+                                              />
+                                            ) : (
+                                              <ThumbsDown
+                                                size={18}
+                                                color="var(--red-9)"
+                                              />
+                                            )}
+                                          </Box>
+                                        )}
+                                      </Flex>
+                                    </Box>
+                                  );
+                                })
+                              ) : (
+                                <Flex
+                                  direction="column"
+                                  align="center"
+                                  justify="center"
+                                  p="6"
+                                  gap="2"
+                                >
+                                  <Box style={{ opacity: 0.5 }}>
+                                    {playerSelection.mode === "best" ? (
+                                      <Trophy size={32} color="var(--green-9)" />
                                     ) : (
-                                      <ThumbsDown size={18} color="var(--red-9)" />
+                                      <ThumbsDown size={32} color="var(--red-9)" />
                                     )}
                                   </Box>
-                                )}
-                              </Flex>
-                            </Box>
-                          );
-                        })}
-                      </Flex>
-                    ) : (
-                      <Flex direction="column" align="center" justify="center" p="6" gap="2">
-                        <Box style={{ opacity: 0.5 }}>
-                          {playerSelection.mode === "best" ? (
-                            <Trophy size={32} color="var(--green-9)" />
-                          ) : (
-                            <ThumbsDown size={32} color="var(--red-9)" />
-                          )}
-                        </Box>
-                        <Text align="center" color="gray" size="2">
-                          Selecione um time acima para ver os jogadores
-                        </Text>
-                      </Flex>
-                    )}
-                  </ScrollArea>
-                </Card>
-              </Box>
+                                  <Text align="center" color="gray" size="2">
+                                    Selecione um time acima para ver os jogadores
+                                  </Text>
+                                </Flex>
+                              )}
+                            </Flex>
+                          </ScrollAreaPrimitive.Viewport>
+                          <ScrollAreaPrimitive.Scrollbar
+                            orientation="vertical"
+                            className="rating-scrollbar"
+                          >
+                            <ScrollAreaPrimitive.Thumb className="rating-scroll-thumb" />
+                          </ScrollAreaPrimitive.Scrollbar>
+                          <ScrollAreaPrimitive.Corner className="rating-scroll-corner" />
+                        </ScrollAreaPrimitive.Root>
+                      </Card>
+                    </Box>
+                  </Flex>
+                </ScrollAreaPrimitive.Viewport>
+                <ScrollAreaPrimitive.Scrollbar
+                  orientation="vertical"
+                  className="rating-scrollbar"
+                >
+                  <ScrollAreaPrimitive.Thumb className="rating-scroll-thumb" />
+                </ScrollAreaPrimitive.Scrollbar>
+                <ScrollAreaPrimitive.Corner className="rating-scroll-corner" />
+              </ScrollAreaPrimitive.Root>
+            </div>
+          </div>
 
-            </Flex>
-          </ScrollArea>
-          
-          <Button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            size="3"
-            style={{ width: "100%" }}
-            mt="4"
-          >
-            {isSubmitting
-              ? "A guardar..."
-              : isEditMode
-              ? "Guardar Alterações"
-              : "Enviar Avaliação"}
-          </Button>
+          <Box mt="6" mb="4" px="2">
+            <Button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              size="3"
+              style={{ width: "100%" }}
+            >
+              {isSubmitting
+                ? "A guardar..."
+                : isEditMode
+                ? "Guardar Alterações"
+                : "Enviar Avaliação"}
+            </Button>
+          </Box>
         </Box>
       </Dialog.Content>
     </Dialog.Root>

@@ -16,6 +16,7 @@ import {
   TextField,
   IconButton,
   Spinner,
+  Dialog,
 } from "@radix-ui/themes";
 import {
   HeartIcon,
@@ -38,6 +39,8 @@ const CommentSection = ({ reviewId }) => {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(true);
+  const [commentToDelete, setCommentToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchComments = useCallback(async () => {
     try {
@@ -70,6 +73,30 @@ const CommentSection = ({ reviewId }) => {
     }
   };
 
+  const handleDeleteComment = (commentId) => {
+    setCommentToDelete(commentId);
+  };
+
+  const confirmDeleteComment = async () => {
+    if (!commentToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await api.delete(`/comentarios/${commentToDelete}`);
+      fetchComments(); // Recarrega os comentários
+      setCommentToDelete(null);
+    } catch (error) {
+      console.error("Erro ao excluir comentário:", error);
+      alert("Não foi possível excluir o comentário. Tente novamente.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const cancelDeleteComment = () => {
+    setCommentToDelete(null);
+  };
+
   return (
     <Box mt="4" pl="8" pt="4" style={{ borderTop: "1px solid var(--gray-a5)" }}>
       <form onSubmit={handlePostComment}>
@@ -94,7 +121,7 @@ const CommentSection = ({ reviewId }) => {
         </Flex>
       </form>
 
-      <Flex direction="column" gap="3" mt="4">
+      <Flex direction="column" gap="3" mt="4" className="custom-scroll-modal">
         {loading ? (
           <Flex align="center" justify="center" p="4">
             <Spinner />
@@ -116,16 +143,29 @@ const CommentSection = ({ reviewId }) => {
               >
                 <Link href={`/perfil/${comment.usuario.username}`} />
               </Avatar>
-              <Box style={{ backgroundColor: "var(--gray-a2)", borderRadius: "var(--radius-3)", padding: "var(--space-2) var(--space-3)", width: "100%"}}>
-                <Flex align="baseline" gap="2">
-                  <RadixLink asChild weight="bold" size="2">
-                    <Link href={`/perfil/${comment.usuario.username}`}>
-                      {comment.usuario.username}
-                    </Link>
-                  </RadixLink>
-                  <Text size="1" color="gray">
-                    {new Date(comment.data_comentario).toLocaleDateString("pt-BR")}
-                  </Text>
+              <Box style={{ backgroundColor: "var(--gray-a2)", borderRadius: "var(--radius-3)", padding: "var(--space-2) var(--space-3)", width: "100%", position: "relative"}}>
+                <Flex align="baseline" gap="2" justify="between">
+                  <Flex align="baseline" gap="2">
+                    <RadixLink asChild weight="bold" size="2">
+                      <Link href={`/perfil/${comment.usuario.username}`}>
+                        {comment.usuario.username}
+                      </Link>
+                    </RadixLink>
+                    <Text size="1" color="gray">
+                      {new Date(comment.data_comentario).toLocaleDateString("pt-BR")}
+                    </Text>
+                  </Flex>
+                  {user?.id === comment.usuario.id && (
+                    <IconButton
+                      variant="ghost"
+                      size="1"
+                      color="red"
+                      onClick={() => handleDeleteComment(comment.id)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <TrashIcon width="12" height="12" />
+                    </IconButton>
+                  )}
                 </Flex>
                 <Text as="p" size="2">
                   {comment.comentario}
@@ -135,16 +175,54 @@ const CommentSection = ({ reviewId }) => {
           ))
         )}
       </Flex>
+
+      {/* Modal de confirmação de exclusão */}
+      <Dialog.Root open={!!commentToDelete} onOpenChange={(open) => !open && cancelDeleteComment()}>
+        <Dialog.Content style={{ maxWidth: "400px" }}>
+          <Dialog.Title>Excluir Comentário</Dialog.Title>
+          <Dialog.Description size="2" mb="4">
+            Tem certeza que deseja excluir este comentário? Esta ação não pode ser desfeita.
+          </Dialog.Description>
+          
+          <Flex gap="3" mt="4" justify="end">
+            <Dialog.Close>
+              <Button variant="soft" color="gray" disabled={isDeleting}>
+                Cancelar
+              </Button>
+            </Dialog.Close>
+            <Button 
+              color="red" 
+              onClick={confirmDeleteComment}
+              loading={isDeleting}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Excluindo..." : "Excluir"}
+            </Button>
+          </Flex>
+        </Dialog.Content>
+      </Dialog.Root>
     </Box>
   );
 };
 
-const ReviewItem = ({ review, onDataChange }) => {
+const ReviewItem = ({ review, onDataChange, isHighlighted, autoExpandComments }) => {
   const { user, isAuthenticated } = useAuth();
   const [isLiked, setIsLiked] = useState(review.curtido_pelo_usuario_atual);
   const [likeCount, setLikeCount] = useState(review.curtidas);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(autoExpandComments || false);
   const [isEditing, setIsEditing] = useState(false);
+
+  // Efeito para fazer scroll até a avaliação destacada
+  useEffect(() => {
+    if (isHighlighted) {
+      setTimeout(() => {
+        const element = document.getElementById(`review-${review.id}`);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 100);
+    }
+  }, [isHighlighted, review.id]);
 
   const isOwner = user && user.id === review.usuario.id;
 
@@ -195,7 +273,14 @@ const ReviewItem = ({ review, onDataChange }) => {
 
   return (
     <>
-      <Card id={`review-${review.id}`}>
+      <Card 
+        id={`review-${review.id}`}
+        style={{
+          border: isHighlighted ? "2px solid var(--accent-9)" : undefined,
+          backgroundColor: isHighlighted ? "var(--accent-a2)" : undefined,
+          transition: "all 0.3s ease"
+        }}
+      >
         <Flex justify="between" gap="4">
           <Flex gap="3">
             <Avatar
@@ -300,7 +385,7 @@ const ReviewItem = ({ review, onDataChange }) => {
   );
 };
 
-export default function ReviewsList({ reviews, onDataChange }) {
+export default function ReviewsList({ reviews, onDataChange, highlightReviewId }) {
   if (!reviews || reviews.length === 0) {
     return (
       <Flex align="center" justify="center" p="8">
@@ -310,12 +395,14 @@ export default function ReviewsList({ reviews, onDataChange }) {
   }
 
   return (
-    <Flex direction="column" gap="4">
+    <Flex direction="column" gap="4" className="custom-scroll-modal">
       {reviews.map((review) => (
         <ReviewItem
           key={review.id}
           review={review}
           onDataChange={onDataChange}
+          isHighlighted={highlightReviewId === review.id.toString()}
+          autoExpandComments={highlightReviewId === review.id.toString()}
         />
       ))}
     </Flex>

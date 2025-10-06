@@ -29,19 +29,21 @@ export default function UpcomingGameCard({ game }) {
 
   return (
     <Link href={`/jogos/${slug}`} style={{ textDecoration: "none" }}>
-      <Card className="upcoming-game-card" style={{
-        border: "1px solid var(--gray-a4)",
-        borderRadius: "8px",
-        padding: "12px",
-        cursor: "pointer",
-        transition: "all 0.2s ease",
-      }}>
+      <Card
+        className="upcoming-game-card"
+        style={{
+          borderRadius: "8px",
+          padding: "12px",
+          cursor: "pointer",
+          transition: "all 0.2s ease",
+        }}
+      >
         <Flex justify="between" align="center" mb="2">
           <Text size="1" color="gray" weight="medium">
             {formatUpcomingDate(data_jogo)}
           </Text>
         </Flex>
-        
+
         <Flex justify="between" align="center" mb="1">
           <Flex align="center" gap="2">
             <Avatar
@@ -54,7 +56,7 @@ export default function UpcomingGameCard({ game }) {
             </Text>
           </Flex>
         </Flex>
-        
+
         <Flex justify="between" align="center">
           <Flex align="center" gap="2">
             <Avatar

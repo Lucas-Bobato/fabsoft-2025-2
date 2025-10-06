@@ -416,7 +416,7 @@ const PlayerProfilePage = () => {
                   <Text>Carregando estatísticas da NBA...</Text>
                 </Flex>
               ) : careerStats.length > 0 ? (
-                <Box style={{ overflowX: 'auto' }}>
+                <Box style={{ overflowX: 'auto' }} className="custom-scroll-modal">
                   <Table.Root>
                     <Table.Header>
                       <Table.Row>

@@ -135,6 +135,7 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
                 onChange={handleChange}
                 rows={3}
                 placeholder="Fale um pouco sobre você..."
+                className="custom-scroll-textarea"
               />
             </label>
 
