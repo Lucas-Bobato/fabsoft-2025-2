@@ -735,7 +735,7 @@ export default function RatingModal({
             </div>
           </div>
 
-          <Box mt="6" mb="4" px="2">
+          <Box mt="6" mb="6" px="2">
             <Button
               onClick={handleSubmit}
               disabled={isSubmitting}
