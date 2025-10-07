@@ -2,10 +2,10 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from nba_api.stats.static import teams
 from nba_api.stats.endpoints import (
-    commonallplayers, leaguegamefinder, boxscoresummaryv2,
-    boxscoretraditionalv2, boxscoretraditionalv3, commonplayerinfo,
+    commonallplayers, leaguegamefinder, commonplayerinfo,
     playerawards, teamdetails, scheduleleaguev2
 )
+from nba_api.live.nba.endpoints import boxscore as live_boxscore
 from nba_api.stats.endpoints import scoreboardv2
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -13,6 +13,15 @@ from .. import crud, schemas, models
 import math
 import time
 import re
+
+
+def _ensure_utc_datetime(value: Optional[datetime]) -> Optional[datetime]:
+    """Guarantee a datetime instance is timezone-aware in UTC."""
+    if value is None:
+        return None
+    if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 def _convert_height_to_cm(height_str: str) -> Optional[int]:
     if not height_str or '-' not in height_str:
@@ -32,6 +41,36 @@ def _convert_weight_to_kg(weight_lbs: str) -> Optional[float]:
     except (ValueError, TypeError):
         return None
     
+
+def _get_or_create_time_from_row(db: Session, row, liga_id: int):
+    team_id = int(row.get('TEAM_ID')) if row.get('TEAM_ID') else None
+    if not team_id:
+        return None
+
+    time_local = crud.get_time_by_api_id(db, api_id=team_id)
+    if time_local:
+        return time_local
+
+    nome = row.get('TEAM_NAME') or row.get('TEAM_ABBREVIATION') or f"Time {team_id}"
+    sigla = row.get('TEAM_ABBREVIATION') or nome[:3].upper()
+    cidade = row.get('TEAM_CITY') or ""
+    logo_url = f"https://cdn.nba.com/logos/nba/{team_id}/global/L/logo.svg"
+
+    try:
+        novo_time = schemas.TimeCreate(
+            api_id=team_id,
+            nome=str(nome),
+            sigla=str(sigla),
+            cidade=str(cidade),
+            liga_id=liga_id,
+            logo_url=logo_url
+        )
+        return crud.create_time(db, time=novo_time)
+    except Exception as e:
+        print(f"Não foi possível criar o time {nome} ({team_id}): {e}")
+        db.rollback()
+        return crud.get_time_by_api_id(db, api_id=team_id)
+
 
 def sync_nba_players(db: Session, skip: int = 0, limit: Optional[int] = None):
     """
@@ -265,92 +304,29 @@ def sync_nba_games_v2(db: Session, season: str):
                         jogos_adicionados += 1
                 
                 # Atualiza estatísticas se o jogo já terminou
-                if (db_jogo and 
-                    db_jogo.data_jogo < datetime.now(timezone.utc) and 
-                    db_jogo.placar_casa == 0 and
-                    game.get('GAME_STATUS_ID', 1) == 3):  # Status 3 = Final
-                    
+                if (
+                    db_jogo
+                    and db_jogo.data_jogo < datetime.now(timezone.utc)
+                    and game.get('GAME_STATUS_ID', 1) == 3
+                ):
                     try:
                         print(f"Atualizando estatísticas do jogo finalizado ID: {game_id}")
                         time.sleep(0.6)
-                        
-                        # Usa ScheduleLeagueV2 data se disponível
-                        home_score = game.get('HOME_TEAM_SCORE', 0)
-                        away_score = game.get('AWAY_TEAM_SCORE', 0)
-                        
-                        if home_score > 0 or away_score > 0:
-                            # Atualiza placar direto do ScheduleLeagueV2
+
+                        home_score = safe_int(game.get('HOME_TEAM_SCORE', 0))
+                        away_score = safe_int(game.get('AWAY_TEAM_SCORE', 0))
+                        if home_score or away_score:
                             crud.update_jogo_scores(
                                 db,
                                 jogo_id=db_jogo.id,
-                                placar_casa=safe_int(home_score),
-                                placar_visitante=safe_int(away_score),
+                                placar_casa=home_score,
+                                placar_visitante=away_score,
                                 status="Final",
                             )
-                        else:
-                            # Fallback para BoxScoreSummaryV2 se placar não estiver disponível
-                            summary_df = boxscoresummaryv2.BoxScoreSummaryV2(game_id=game_id, timeout=60).get_data_frames()
-                            
-                            if summary_df and len(summary_df) > 5 and not summary_df[0].empty and not summary_df[5].empty:
-                                game_summary = summary_df[0].iloc[0]
-                                line_score = summary_df[5]
-                                
-                                placar_casa = safe_int(line_score[line_score['TEAM_ID'] == db_jogo.time_casa.api_id]['PTS'].iloc[0])
-                                placar_visitante = safe_int(line_score[line_score['TEAM_ID'] == db_jogo.time_visitante.api_id]['PTS'].iloc[0])
-                                status_final = game_summary['GAME_STATUS_TEXT']
-                                
-                                crud.update_jogo_scores(
-                                    db,
-                                    jogo_id=db_jogo.id,
-                                    placar_casa=placar_casa,
-                                    placar_visitante=placar_visitante,
-                                    status=status_final,
-                                )
-                        
-                        # Busca estatísticas dos jogadores (usa método modernizado)
-                        player_stats_df = None
-                        try:
-                            player_stats_df = boxscoretraditionalv3.BoxScoreTraditionalV3(
-                                game_id=game_id,
-                                start_period=1,
-                                end_period=10,
-                                start_range=0,
-                                end_range=0,
-                                range_type=0,
-                                timeout=60
-                            ).get_data_frames()[0]
-                            print(f"    -> Usando BoxScoreTraditionalV3 para jogo {game_id}")
-                        except Exception as v3_error:
-                            print(f"    -> BoxScoreTraditionalV3 falhou, usando V2: {v3_error}")
-                            player_stats_df = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=60).get_data_frames()[0]
-                        
-                        # Processa estatísticas dos jogadores
-                        for index, p_stat in player_stats_df.iterrows():
-                            player_id = p_stat.get('PLAYER_ID') or p_stat.get('personId')
-                            if not player_id:
-                                continue
-                                
-                            db_player = crud.get_jogador_by_api_id(db, api_id=player_id)
-                            if db_player and not crud.get_estatistica(db, jogo_id=db_jogo.id, jogador_id=db_player.id):
-                                minutos_decimais = 0.0
-                                minutos_str = p_stat.get('MIN') or p_stat.get('minutes')
-                                if isinstance(minutos_str, str) and ':' in minutos_str:
-                                    minutos, segundos = map(int, minutos_str.split(':'))
-                                    minutos_decimais = round(minutos + segundos / 60.0, 2)
-                                
-                                pontos = p_stat.get('PTS') or p_stat.get('points')
-                                rebotes = p_stat.get('REB') or p_stat.get('reboundsTotal')
-                                assistencias = p_stat.get('AST') or p_stat.get('assists')
-                                
-                                nova_stat = schemas.EstatisticaCreate(
-                                    jogador_id=db_player.id,
-                                    minutos_jogados=minutos_decimais,
-                                    pontos=safe_int(pontos),
-                                    rebotes=safe_int(rebotes),
-                                    assistencias=safe_int(assistencias)
-                                )
-                                crud.create_estatistica_jogo(db, estatistica=nova_stat, jogo_id=db_jogo.id)
-                    
+
+                        boxscore_payload = live_boxscore.BoxScore(game_id=str(game_id), timeout=60).get_dict()
+                        crud.save_final_boxscore_and_score(db, db_jogo.id, boxscore_payload, {})
+
                     except Exception as e:
                         print(f"Erro ao buscar detalhes do jogo ID {game_id}: {e}")
                         
@@ -384,108 +360,57 @@ def sync_nba_games(db: Session, season: str):
     unique_game_ids = games_df['GAME_ID'].dropna().unique()
 
     for game_id in unique_game_ids:
-        db_jogo = crud.get_jogo_by_api_id(db, api_id=int(game_id))
-        
+        int_game_id = int(game_id)
+        db_jogo = crud.get_jogo_by_api_id(db, api_id=int_game_id)
+
         if not db_jogo:
             game_rows = games_df[games_df['GAME_ID'] == game_id]
             if len(game_rows) < 2:
                 continue
-            
+
             row1, row2 = game_rows.iloc[0], game_rows.iloc[1]
-            
-            # --- LÓGICA DE IDENTIFICAÇÃO DE TIMES MELHORADA ---
             home_row, away_row = (row1, row2) if '@' in row1.get('MATCHUP', '') else (row2, row1)
-            
-            time_casa_local = crud.get_time_by_api_id(db, api_id=home_row['TEAM_ID'])
-            time_visitante_local = crud.get_time_by_api_id(db, api_id=away_row['TEAM_ID'])
 
-            if time_casa_local and time_visitante_local:
-                game_date_naive = datetime.strptime(home_row['GAME_DATE'], '%Y-%m-%d')
-                game_date_aware = datetime.combine(game_date_naive, datetime.min.time(), tzinfo=timezone.utc)
-                
-                db_jogo = crud.create_jogo(db, jogo=schemas.JogoCreate(
-                    api_id=int(game_id),
-                    data_jogo=game_date_aware,
-                    temporada=season,
-                    liga_id=liga_nba_id,
-                    time_casa_id=time_casa_local.id,
-                    time_visitante_id=time_visitante_local.id,
-                ))
-                jogos_adicionados += 1
+            time_casa_local = _get_or_create_time_from_row(db, home_row, liga_nba_id)
+            time_visitante_local = _get_or_create_time_from_row(db, away_row, liga_nba_id)
 
-        if db_jogo and db_jogo.data_jogo < datetime.now(timezone.utc) and db_jogo.placar_casa == 0:
+            if not time_casa_local or not time_visitante_local:
+                print(f"Não foi possível determinar os times para o jogo {game_id}. Pulando...")
+                continue
+
+            try:
+                game_date_naive = datetime.strptime(str(home_row['GAME_DATE']), '%Y-%m-%d')
+            except Exception:
+                continue
+
+            game_date_aware = datetime.combine(game_date_naive, datetime.min.time(), tzinfo=timezone.utc)
+
+            db_jogo = crud.create_jogo(db, jogo=schemas.JogoCreate(
+                api_id=int_game_id,
+                data_jogo=game_date_aware,
+                temporada=season,
+                liga_id=liga_nba_id,
+                time_casa_id=time_casa_local.id,
+                time_visitante_id=time_visitante_local.id,
+            ))
+            jogos_adicionados += 1
+
+        if not db_jogo:
+            continue
+
+        data_jogo_utc = _ensure_utc_datetime(db_jogo.data_jogo)
+        status_atual = (db_jogo.status_jogo or "").lower()
+        if (
+            data_jogo_utc
+            and data_jogo_utc < datetime.now(timezone.utc)
+            and status_atual not in ("final", "finalizado")
+        ):
             try:
                 print(f"Buscando detalhes do jogo finalizado ID: {game_id}")
                 time.sleep(0.6)
-                
-                timeout_individual = 60
-                summary_df = boxscoresummaryv2.BoxScoreSummaryV2(game_id=game_id, timeout=timeout_individual).get_data_frames()
-                
-                if not summary_df or summary_df[0].empty or summary_df[5].empty:
-                    print(f"Dados insuficientes do boxscore para o jogo ID {game_id}")
-                    continue
-                    
-                game_summary = summary_df[0].iloc[0]
-                line_score = summary_df[5]
-                
-                placar_casa = safe_int(line_score[line_score['TEAM_ID'] == db_jogo.time_casa.api_id]['PTS'].iloc[0])
-                placar_visitante = safe_int(line_score[line_score['TEAM_ID'] == db_jogo.time_visitante.api_id]['PTS'].iloc[0])
-                status_final = game_summary['GAME_STATUS_TEXT']
-                
-                crud.update_jogo_scores(
-                    db,
-                    jogo_id=db_jogo.id,
-                    placar_casa=placar_casa,
-                    placar_visitante=placar_visitante,
-                    status=status_final,
-                )
-                
-                # Tenta usar BoxScoreTraditionalV3 primeiro (mais moderno)
-                player_stats_df = None
-                try:
-                    player_stats_df = boxscoretraditionalv3.BoxScoreTraditionalV3(
-                        game_id=game_id,
-                        start_period=1,
-                        end_period=10,
-                        start_range=0,
-                        end_range=0,
-                        range_type=0,
-                        timeout=timeout_individual
-                    ).get_data_frames()[0]
-                    print(f"    -> Usando BoxScoreTraditionalV3 para jogo {game_id}")
-                except Exception as v3_error:
-                    print(f"    -> BoxScoreTraditionalV3 falhou, usando V2: {v3_error}")
-                    player_stats_df = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id, timeout=timeout_individual).get_data_frames()[0]
-                
-                for index, p_stat in player_stats_df.iterrows():
-                    # Compatibilidade entre V2 e V3
-                    player_id = p_stat.get('PLAYER_ID') or p_stat.get('personId')
-                    if not player_id:
-                        continue
-                        
-                    db_player = crud.get_jogador_by_api_id(db, api_id=player_id)
-                    if db_player and not crud.get_estatistica(db, jogo_id=db_jogo.id, jogador_id=db_player.id):
-                        minutos_decimais = 0.0
-                        
-                        # V3 usa 'minutes', V2 usa 'MIN'
-                        minutos_str = p_stat.get('MIN') or p_stat.get('minutes')
-                        if isinstance(minutos_str, str) and ':' in minutos_str:
-                            minutos, segundos = map(int, minutos_str.split(':'))
-                            minutos_decimais = round(minutos + segundos / 60.0, 2)
-                        
-                        # V3 usa 'points', V2 usa 'PTS'
-                        pontos = p_stat.get('PTS') or p_stat.get('points')
-                        rebotes = p_stat.get('REB') or p_stat.get('reboundsTotal')
-                        assistencias = p_stat.get('AST') or p_stat.get('assists')
-                        
-                        nova_stat = schemas.EstatisticaCreate(
-                            jogador_id=db_player.id,
-                            minutos_jogados=minutos_decimais,
-                            pontos=safe_int(pontos),
-                            rebotes=safe_int(rebotes),
-                            assistencias=safe_int(assistencias)
-                        )
-                        crud.create_estatistica_jogo(db, estatistica=nova_stat, jogo_id=db_jogo.id)
+
+                boxscore_payload = live_boxscore.BoxScore(game_id=str(game_id), timeout=60).get_dict()
+                crud.save_final_boxscore_and_score(db, db_jogo.id, boxscore_payload, {})
             except Exception as e:
                 print(f"Erro ao buscar detalhes do jogo ID {game_id}: {e}")
 

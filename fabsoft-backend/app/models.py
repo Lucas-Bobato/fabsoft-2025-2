@@ -133,8 +133,32 @@ class Estatistica_Jogador_Jogo(Base):
     turnovers = Column(Integer)
     jogo_id = Column(Integer, ForeignKey("jogos.id"))
     jogador_id = Column(Integer, ForeignKey("jogadores.id"))
+    time_id = Column(Integer, ForeignKey("times.id"), nullable=True)
     jogo = relationship("Jogo")
     jogador = relationship("Jogador")
+    time = relationship("Time")
+
+class Estatistica_Time_Jogo(Base):
+    __tablename__ = "estatisticas_time_jogo"
+    id = Column(Integer, primary_key=True, index=True)
+    jogo_id = Column(Integer, ForeignKey("jogos.id"), nullable=False)
+    time_id = Column(Integer, ForeignKey("times.id"), nullable=False)
+    pontos = Column(Integer, default=0)
+    assistencias = Column(Integer, default=0)
+    rebotes = Column(Integer, default=0)
+    turnovers = Column(Integer, default=0)
+    fg_pct = Column(Float)
+    fg3_pct = Column(Float)
+    ft_pct = Column(Float)
+    fg_made = Column(Integer, default=0)
+    fg_attempts = Column(Integer, default=0)
+    fg3_made = Column(Integer, default=0)
+    fg3_attempts = Column(Integer, default=0)
+    ft_made = Column(Integer, default=0)
+    ft_attempts = Column(Integer, default=0)
+    jogo = relationship("Jogo")
+    time = relationship("Time")
+    __table_args__ = (UniqueConstraint('jogo_id', 'time_id', name='_jogo_time_stats_uc'),)
 
 class Seguidor(Base):
     __tablename__ = 'seguidores'

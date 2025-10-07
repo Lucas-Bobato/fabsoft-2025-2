@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import ReviewsList from "@/components/ReviewsList";
 import BoxScore from "@/components/BoxScore";
 import GameStats from "@/components/GameStats";
+import OfficialGameStats from "@/components/OfficialGameStats";
 import { Theme, Container, Box, Card, Flex, Text, Button, Tabs } from "@radix-ui/themes";
 import { Star } from "lucide-react";
 
@@ -57,7 +58,7 @@ const GameDetailsHeader = ({ game }) => (
   </Box>
 );
 
-const StatsTabs = ({ game, reviews, onDataChange, highlightReviewId }) => {
+const StatsTabs = ({ game, reviews, onDataChange, highlightReviewId, officialStats }) => {
   return (
     <Box>
       <Tabs.Root defaultValue="reviews">
@@ -71,8 +72,10 @@ const StatsTabs = ({ game, reviews, onDataChange, highlightReviewId }) => {
           <Tabs.Trigger value="playbyplay">
             Play-by-Play
           </Tabs.Trigger>
+          <Tabs.Trigger value="official">
+            Estatísticas
+          </Tabs.Trigger>
         </Tabs.List>
-        
         <Box pt="4">
           <Tabs.Content value="reviews">
             <ReviewsList 
@@ -82,10 +85,13 @@ const StatsTabs = ({ game, reviews, onDataChange, highlightReviewId }) => {
             />
           </Tabs.Content>
           <Tabs.Content value="boxscore">
-            <BoxScore gameId={game.id} />
+            <BoxScore gameId={game.id} view="boxscore" officialStats={officialStats} game={game} />
           </Tabs.Content>
           <Tabs.Content value="playbyplay">
-            <BoxScore gameId={game.id} />
+            <BoxScore gameId={game.id} view="playbyplay" />
+          </Tabs.Content>
+          <Tabs.Content value="official">
+            <OfficialGameStats officialStats={officialStats} />
           </Tabs.Content>
         </Box>
       </Tabs.Root>
@@ -101,6 +107,7 @@ export default function GameDetailsPage() {
   const [game, setGame] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [gameStats, setGameStats] = useState(null);
+  const [officialStats, setOfficialStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -113,12 +120,17 @@ export default function GameDetailsPage() {
       const gameData = gameRes.data;
       setGame(gameData);
 
-      const [reviewsRes, statsRes] = await Promise.all([
+      const [reviewsRes, statsRes, officialStatsRes] = await Promise.allSettled([
         api.get(`/jogos/${gameData.id}/avaliacoes/`),
         api.get(`/jogos/${gameData.id}/estatisticas-gerais`),
+        api.get(`/jogos/${gameData.id}/estatisticas-oficiais`),
       ]);
-      setReviews(reviewsRes.data);
-      setGameStats(statsRes.data);
+
+      setReviews(reviewsRes.status === "fulfilled" ? reviewsRes.value.data : []);
+      setGameStats(statsRes.status === "fulfilled" ? statsRes.value.data : null);
+      setOfficialStats(
+        officialStatsRes.status === "fulfilled" ? officialStatsRes.value.data : null
+      );
     } catch (err) {
       setError("Não foi possível carregar os detalhes do jogo.");
       console.error(err);
@@ -185,6 +197,7 @@ export default function GameDetailsPage() {
             reviews={reviews}
             onDataChange={fetchGameData}
             highlightReviewId={searchParams.get("review")}
+            officialStats={officialStats}
           />
         </Flex>
 

@@ -70,7 +70,7 @@ export default function LoginPage() {
       <Card size="4" style={{ width: "100%", maxWidth: "450px" }}>
         <Box mb="6" align="center">
           <Heading size="8" mb="2">
-            SlamTalks
+            SlamTalk
           </Heading>
           <Text as="p" color="gray">
             Bem-vindo de volta, fã de basquete!

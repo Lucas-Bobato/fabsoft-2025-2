@@ -269,6 +269,8 @@ class EstatisticaCreate(EstatisticaBase):
 class Estatistica(EstatisticaBase):
     id: int
     jogador: Jogador
+    time_id: Optional[int] = None
+    time: Optional[TimeSimple] = None
     model_config = {"from_attributes": True}
     
 # --- Schemas para Comentario_Avaliacao ---
@@ -447,6 +449,28 @@ class JogoEstatisticasGerais(BaseModel):
     media_atmosfera: float = 0.0
     mvp_mais_votado: JogadorMaisVotado
     decepcao_mais_votada: JogadorMaisVotado
+
+class TimeEstatisticaJogo(BaseModel):
+    time: TimeSimple
+    pontos: int
+    assistencias: int
+    rebotes: int
+    turnovers: int
+    fg_pct: float
+    fg3_pct: float
+    ft_pct: float
+    fg_made: int = 0
+    fg_attempts: int = 0
+    fg3_made: int = 0
+    fg3_attempts: int = 0
+    ft_made: int = 0
+    ft_attempts: int = 0
+
+class GameOfficialStats(BaseModel):
+    time_casa: TimeEstatisticaJogo
+    time_visitante: TimeEstatisticaJogo
+    jogadores_casa: List[Estatistica]
+    jogadores_visitante: List[Estatistica]
     
 class AvaliacaoJogoSimple(BaseModel):
     id: int

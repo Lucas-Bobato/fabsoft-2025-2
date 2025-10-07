@@ -1,14 +1,6 @@
 import React from "react";
-import Image from "next/image";
 import IconRatingDisplay from "./IconRatingDisplay";
-import {
-  Swords,
-  Shield,
-  Star,
-  Drum,
-  Award,
-  UserX,
-} from "lucide-react";
+import { Swords, Shield, Star, Drum, Award, UserX } from "lucide-react";
 import Link from "next/link";
 import { Card, Box, Grid, Flex, Text, Avatar } from "@radix-ui/themes";
 
@@ -59,7 +51,7 @@ const PlayerHighlightCard = ({ player, votes, type }) => {
         <Link href={`/jogadores/${player.slug}`} className="relative">
           <Box position="relative">
             <Avatar
-              src={player.foto_url || "/placeholder.png"}
+              src={player.foto_url || "/player-placeholder.svg"}
               alt={player.nome}
               size="6"
               fallback={player.nome.split(' ').map(n => n[0]).join('')}
@@ -111,7 +103,6 @@ export default function GameStats({ stats, game }) {
     <Card>
       <Flex direction="column" gap="6" p="6">
         <Grid columns={{ initial: "1", md: "3" }} gap="6">
-          {/* Coluna de Médias Gerais */}
           <Flex direction="column" gap="3">
             <Text size="5" weight="bold" mb="2">Médias da Comunidade</Text>
             <RatingRow
@@ -134,7 +125,6 @@ export default function GameStats({ stats, game }) {
             />
           </Flex>
 
-          {/* Coluna de Time Visitante */}
           <Flex direction="column" gap="3">
             <Text size="5" weight="bold" mb="2">{game.time_visitante.nome}</Text>
             <RatingRow
@@ -151,7 +141,6 @@ export default function GameStats({ stats, game }) {
             />
           </Flex>
 
-          {/* Coluna de Time da Casa */}
           <Flex direction="column" gap="3">
             <Text size="5" weight="bold" mb="2">{game.time_casa.nome}</Text>
             <RatingRow
@@ -169,9 +158,7 @@ export default function GameStats({ stats, game }) {
           </Flex>
         </Grid>
 
-        {/* Seção de Jogadores Mais Votados */}
-        {(stats.mvp_mais_votado?.jogador ||
-          stats.decepcao_mais_votada?.jogador) && (
+        {(stats.mvp_mais_votado?.jogador || stats.decepcao_mais_votada?.jogador) && (
           <Box pt="4" style={{ borderTop: "1px solid var(--gray-6)" }}>
             <Grid columns={{ initial: "1", md: "2" }} gap="4">
               {stats.mvp_mais_votado?.jogador && (
