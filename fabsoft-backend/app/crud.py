@@ -586,7 +586,18 @@ def get_jogos(
     data: Optional[date] = None,
     status: Optional[str] = None,
 ):
-    query = db.query(models.Jogo)
+    # Subquery para verificar se os times existem
+    existing_teams = db.query(models.Time.id).subquery()
+    
+    query = db.query(models.Jogo).options(
+        joinedload(models.Jogo.time_casa),
+        joinedload(models.Jogo.time_visitante)
+    ).filter(
+        models.Jogo.time_casa_id.is_not(None),
+        models.Jogo.time_visitante_id.is_not(None),
+        models.Jogo.time_casa_id.in_(existing_teams),
+        models.Jogo.time_visitante_id.in_(existing_teams)
+    )
 
     if data:
         query = query.filter(func.date(models.Jogo.data_jogo) == data)
@@ -1098,8 +1109,17 @@ def update_time(db: Session, time_id: int, time: schemas.TimeCreate):
     return db_time
     
 def get_upcoming_games(db: Session, limit: int = 5):
+    # Subquery para verificar se os times existem
+    existing_teams = db.query(models.Time.id).subquery()
+    
     return db.query(models.Jogo)\
-        .filter(models.Jogo.data_jogo >= datetime.now())\
+        .filter(
+            models.Jogo.data_jogo >= datetime.now(),
+            models.Jogo.time_casa_id.is_not(None),
+            models.Jogo.time_visitante_id.is_not(None),
+            models.Jogo.time_casa_id.in_(existing_teams),
+            models.Jogo.time_visitante_id.in_(existing_teams)
+        )\
         .order_by(models.Jogo.data_jogo.asc())\
         .limit(limit)\
         .all()
@@ -1655,17 +1675,27 @@ def get_highlighted_games(db: Session, tipo_destaque: str = "esta_semana", limit
     elif tipo_destaque == "ontem":
         start_date = now - timedelta(days=1)
         end_date = now
-    elif tipo_destaque == "tournament":
-        start_date = now - timedelta(days=30)
     else:
         start_date = now - timedelta(days=7)
     
+    # Subquery para verificar se os times existem
+    existing_teams = db.query(models.Time.id).subquery()
+    
+    # Primeiro buscar jogos finalizados com avaliações
     query = db.query(
         models.Jogo,
         func.count(models.Avaliacao_Jogo.id).label('total_avaliacoes'),
         func.avg(models.Avaliacao_Jogo.nota_geral).label('media_geral')
     ).join(models.Avaliacao_Jogo, models.Jogo.id == models.Avaliacao_Jogo.jogo_id)\
-     .filter(models.Jogo.data_jogo >= start_date)
+     .filter(
+         models.Jogo.data_jogo >= start_date,
+         models.Jogo.data_jogo < now,  # Apenas jogos já finalizados
+         models.Jogo.status_jogo.in_(["finalizado", "final", "Final", "Finished"]),
+         models.Jogo.time_casa_id.is_not(None),
+         models.Jogo.time_visitante_id.is_not(None),
+         models.Jogo.time_casa_id.in_(existing_teams),
+         models.Jogo.time_visitante_id.in_(existing_teams)
+     )
     
     if tipo_destaque == "ontem":
         query = query.filter(models.Jogo.data_jogo < end_date)
@@ -1674,6 +1704,26 @@ def get_highlighted_games(db: Session, tipo_destaque: str = "esta_semana", limit
                   .order_by(func.count(models.Avaliacao_Jogo.id).desc())\
                   .limit(limit)\
                   .all()
+    
+    # Se não há jogos avaliados suficientes, pegar jogos finalizados recentemente
+    if len(results) < limit:
+        remaining_slots = limit - len(results)
+        existing_ids = [r[0].id for r in results]
+        
+        fallback_games = db.query(models.Jogo)\
+                          .filter(
+                              models.Jogo.data_jogo >= start_date,
+                              models.Jogo.data_jogo < now,
+                              models.Jogo.status_jogo.in_(["finalizado", "final", "Final", "Finished"]),
+                              models.Jogo.id.notin_(existing_ids)
+                          )\
+                          .order_by(models.Jogo.data_jogo.desc())\
+                          .limit(remaining_slots)\
+                          .all()
+        
+        # Adicionar jogos fallback com valores padrão
+        for game in fallback_games:
+            results.append((game, 0, 0.0))
     
     jogos_destaque = []
     for jogo, total_avaliacoes, media_geral in results:
@@ -1693,6 +1743,85 @@ def get_highlighted_games(db: Session, tipo_destaque: str = "esta_semana", limit
         jogos_destaque.append(jogo_destaque)
     
     return jogos_destaque
+
+def get_finished_games_last_48h(db: Session, limit: int = 20):
+    """
+    Retorna jogos finalizados nas últimas 48 horas ordenados por mais avaliações.
+    """
+    now = datetime.now()
+    start_date = now - timedelta(hours=48)
+    
+    # Subquery para verificar se os times existem
+    existing_teams = db.query(models.Time.id).subquery()
+    
+    # Buscar jogos finalizados com suas avaliações
+    query = db.query(
+        models.Jogo,
+        func.count(models.Avaliacao_Jogo.id).label('total_avaliacoes'),
+        func.avg(models.Avaliacao_Jogo.nota_geral).label('media_geral')
+    ).outerjoin(models.Avaliacao_Jogo, models.Jogo.id == models.Avaliacao_Jogo.jogo_id)\
+     .filter(
+         models.Jogo.data_jogo >= start_date,
+         models.Jogo.data_jogo < now,
+         models.Jogo.status_jogo.in_(["finalizado", "final", "Final", "Finished"]),
+         models.Jogo.time_casa_id.is_not(None),
+         models.Jogo.time_visitante_id.is_not(None),
+         models.Jogo.time_casa_id.in_(existing_teams),
+         models.Jogo.time_visitante_id.in_(existing_teams)
+     )
+    
+    results = query.group_by(models.Jogo.id)\
+                  .order_by(
+                      func.count(models.Avaliacao_Jogo.id).desc(),
+                      models.Jogo.data_jogo.desc()
+                  )\
+                  .limit(limit)\
+                  .all()
+    
+    jogos_finalizados = []
+    for jogo, total_avaliacoes, media_geral in results:
+        jogo_destaque = schemas.JogoDestaque(
+            id=jogo.id,
+            slug=jogo.slug,
+            data_jogo=jogo.data_jogo,
+            temporada=jogo.temporada,
+            placar_casa=jogo.placar_casa,
+            placar_visitante=jogo.placar_visitante,
+            time_casa=jogo.time_casa,
+            time_visitante=jogo.time_visitante,
+            total_avaliacoes=total_avaliacoes or 0,
+            media_geral=float(media_geral) if media_geral else 0.0,
+            tipo_destaque="finalizados_48h"
+        )
+        jogos_finalizados.append(jogo_destaque)
+    
+    return jogos_finalizados
+
+def get_live_games(db: Session):
+    """
+    Retorna jogos que estão acontecendo agora (ao vivo).
+    Inclui jogos com status: ao_vivo, em_andamento, live, 2º Quarter, 3º Quarter, 4º Quarter, Overtime
+    """
+    live_statuses = [
+        "ao_vivo", "em_andamento", "live", 
+        "1st Qtr", "2nd Qtr", "3rd Qtr", "4th Qtr", "End of 1st", "End of 2nd", "End of 3rd",
+        "Halftime", "OT1", "OT2", "OT3", "OT4", "OT5",
+        "In Progress", "Playing"
+    ]
+    
+    # Subquery para verificar se os times existem
+    existing_teams = db.query(models.Time.id).subquery()
+    
+    return db.query(models.Jogo)\
+             .filter(
+                 models.Jogo.status_jogo.in_(live_statuses),
+                 models.Jogo.time_casa_id.is_not(None),
+                 models.Jogo.time_visitante_id.is_not(None),
+                 models.Jogo.time_casa_id.in_(existing_teams),
+                 models.Jogo.time_visitante_id.in_(existing_teams)
+             )\
+             .order_by(models.Jogo.data_jogo.desc())\
+             .all()
 
 def get_personalized_feed(db: Session, usuario_id: int, limit: int = 10):
     times_favoritos = db.query(

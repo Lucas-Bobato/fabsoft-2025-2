@@ -36,15 +36,6 @@ def sync_players_endpoint(
     resultado = nba_importer.sync_nba_players(db, skip=skip, limit=limit)
     return resultado
 
-@router.post("/maintenance/fix-player-photos")
-def maintenance_fix_player_photos(
-    db: Session = Depends(get_db),
-    current_user: schemas.Usuario = Depends(get_current_user)
-):
-    """Corrige URLs antigas de fotos dos jogadores que retornam 403."""
-    updated = crud.fix_old_player_photo_urls(db)
-    return {"updated": updated, "message": f"{updated} fotos atualizadas para o novo CDN"}
-
 @router.post("/sync-games/{season}", response_model=schemas.SyncResponse)
 def sync_games_endpoint(
     season: str,
@@ -122,19 +113,6 @@ def sync_all_championships_endpoint(
     no banco de dados.
     """
     resultado = nba_importer.sync_all_teams_championships(db)
-    return resultado
-
-@router.post("/sync-career-stats/{jogador_id}", response_model=SyncCareerStatsResponse)
-def sync_career_stats_endpoint(
-    jogador_id: int,
-    db: Session = Depends(get_db),
-    current_user: schemas.Usuario = Depends(get_current_user)
-):
-    """
-    Endpoint para validar e testar o acesso às estatísticas de carreira
-    de um jogador específico usando o ID INTERNO do banco de dados.
-    """
-    resultado = nba_importer.sync_player_career_stats(db, jogador_id=jogador_id)
     return resultado
 
 @router.post("/sync-all-career-stats", response_model=SyncAllCareerStatsResponse)

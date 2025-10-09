@@ -13,52 +13,99 @@ import OfficialGameStats from "@/components/OfficialGameStats";
 import { Theme, Container, Box, Card, Flex, Text, Button, Tabs } from "@radix-ui/themes";
 import { Star } from "lucide-react";
 
-const GameDetailsHeader = ({ game }) => (
-  <Box py="4">
-    <Flex align="center" justify="between" gap="4">
-      <Link href={`/times/${game.time_visitante.slug}`} style={{ flex: 1 }}>
-        <Flex direction="column" align="center" gap="2" className="hover:opacity-80 transition-opacity">
-          <Image
-            src={game.time_visitante.logo_url}
-            width={80}
-            height={80}
-            alt={game.time_visitante.nome}
-            className="w-16 h-16 md:w-20 md:h-20"
-          />
-          <Text size={{ initial: "4", md: "6" }} weight="bold" align="center">
-            {game.time_visitante.nome}
+const GameDetailsHeader = ({ game }) => {
+  const liveStatuses = [
+    'ao_vivo', 'em_andamento', 'live', 
+    '1st qtr', '2nd qtr', '3rd qtr', '4th qtr', 'end of 1st', 'end of 2nd', 'end of 3rd',
+    'halftime', 'ot1', 'ot2', 'ot3', 'ot4', 'ot5',
+    'in progress', 'playing'
+  ];
+  const isLive = game.status_jogo && liveStatuses.includes(game.status_jogo.toLowerCase());
+  
+  return (
+    <Box py="4">
+      <Flex align="center" justify="between" gap="4">
+        <Link href={`/times/${game.time_visitante.slug}`} style={{ flex: 1 }}>
+          <Flex direction="column" align="center" gap="2" className="hover:opacity-80 transition-opacity">
+            <Image
+              src={game.time_visitante.logo_url}
+              width={80}
+              height={80}
+              alt={game.time_visitante.nome}
+              className="w-16 h-16 md:w-20 md:h-20"
+            />
+            <Text size={{ initial: "4", md: "6" }} weight="bold" align="center">
+              {game.time_visitante.nome}
+            </Text>
+          </Flex>
+        </Link>
+        
+        <Flex direction="column" align="center" gap="2" px="4">
+          {isLive && (
+            <Flex align="center" gap="2" style={{
+              padding: "4px 12px",
+              backgroundColor: "#ef4444",
+              borderRadius: "20px",
+              animation: "pulse 2s infinite"
+            }}>
+              <div style={{
+                width: "8px",
+                height: "8px",
+                borderRadius: "50%",
+                backgroundColor: "white",
+                animation: "pulse 1s infinite"
+              }}></div>
+              <Text size="1" weight="bold" style={{ color: "white" }}>
+                AO VIVO
+              </Text>
+            </Flex>
+          )}
+          <Text size={{ initial: "8", md: "9" }} weight="bold">
+            {`${game.placar_visitante} x ${game.placar_casa}`}
+          </Text>
+          <Text size="2" color="gray" style={{ textTransform: "uppercase" }}>
+            {new Date(game.data_jogo).toLocaleDateString("pt-BR", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit"
+            })}
           </Text>
         </Flex>
-      </Link>
-      
-      <Flex direction="column" align="center" gap="1" px="4">
-        <Text size={{ initial: "8", md: "9" }} weight="bold">
-          {`${game.placar_visitante} x ${game.placar_casa}`}
-        </Text>
-        <Text size="2" color="gray" style={{ textTransform: "uppercase" }}>
-          {game.status_jogo}
-        </Text>
+        
+        <Link href={`/times/${game.time_casa.slug}`} style={{ flex: 1 }}>
+          <Flex direction="column" align="center" gap="2" className="hover:opacity-80 transition-opacity">
+            <Image
+              src={game.time_casa.logo_url}
+              width={80}
+              height={80}
+              alt={game.time_casa.nome}
+              className="w-16 h-16 md:w-20 md:h-20"
+            />
+            <Text size={{ initial: "4", md: "6" }} weight="bold" align="center">
+              {game.time_casa.nome}
+            </Text>
+          </Flex>
+        </Link>
       </Flex>
-      
-      <Link href={`/times/${game.time_casa.slug}`} style={{ flex: 1 }}>
-        <Flex direction="column" align="center" gap="2" className="hover:opacity-80 transition-opacity">
-          <Image
-            src={game.time_casa.logo_url}
-            width={80}
-            height={80}
-            alt={game.time_casa.nome}
-            className="w-16 h-16 md:w-20 md:h-20"
-          />
-          <Text size={{ initial: "4", md: "6" }} weight="bold" align="center">
-            {game.time_casa.nome}
-          </Text>
-        </Flex>
-      </Link>
-    </Flex>
-  </Box>
-);
+
+      <style jsx>{`
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.7;
+          }
+        }
+      `}</style>
+    </Box>
+  );
+};
 
 const StatsTabs = ({ game, reviews, onDataChange, highlightReviewId, officialStats }) => {
+  const isFinalizado = game.status_jogo && ["finalizado", "final", "Finished", "Final"].includes(game.status_jogo.toLowerCase());
   return (
     <Box>
       <Tabs.Root defaultValue="reviews">
@@ -69,9 +116,11 @@ const StatsTabs = ({ game, reviews, onDataChange, highlightReviewId, officialSta
           <Tabs.Trigger value="boxscore">
             Box Score
           </Tabs.Trigger>
-          <Tabs.Trigger value="playbyplay">
-            Play-by-Play
-          </Tabs.Trigger>
+          {!isFinalizado && (
+            <Tabs.Trigger value="playbyplay">
+              Play-by-Play
+            </Tabs.Trigger>
+          )}
           <Tabs.Trigger value="official">
             Estatísticas
           </Tabs.Trigger>
@@ -87,9 +136,11 @@ const StatsTabs = ({ game, reviews, onDataChange, highlightReviewId, officialSta
           <Tabs.Content value="boxscore">
             <BoxScore gameId={game.id} view="boxscore" officialStats={officialStats} game={game} />
           </Tabs.Content>
-          <Tabs.Content value="playbyplay">
-            <BoxScore gameId={game.id} view="playbyplay" />
-          </Tabs.Content>
+          {!isFinalizado && (
+            <Tabs.Content value="playbyplay">
+              <BoxScore gameId={game.id} view="playbyplay" />
+            </Tabs.Content>
+          )}
           <Tabs.Content value="official">
             <OfficialGameStats officialStats={officialStats} />
           </Tabs.Content>
@@ -100,6 +151,16 @@ const StatsTabs = ({ game, reviews, onDataChange, highlightReviewId, officialSta
 };
 
 export default function GameDetailsPage() {
+  // Sincronizar dados do jogo finalizado
+  useEffect(() => {
+    if (!game) return;
+    const isFinalizado = game.status_jogo && ["finalizado", "final", "Finished", "Final"].includes(game.status_jogo.toLowerCase());
+    if (isFinalizado) {
+      // Chama o endpoint de sincronização
+      api.post(`/admin/sync-games/${game.temporada}`)
+        .catch((err) => console.error("Erro ao sincronizar dados do jogo finalizado:", err));
+    }
+  }, [game]);
   const params = useParams();
   const searchParams = useSearchParams(); // 2. Inicializar o hook
   const { slug } = params;
@@ -142,6 +203,26 @@ export default function GameDetailsPage() {
   useEffect(() => {
     fetchGameData();
   }, [fetchGameData]);
+
+  // Atualizar jogos ao vivo automaticamente
+  useEffect(() => {
+    if (!game) return;
+    
+    const liveStatuses = [
+      'ao_vivo', 'em_andamento', 'live', 
+      '1st qtr', '2nd qtr', '3rd qtr', '4th qtr', 'end of 1st', 'end of 2nd', 'end of 3rd',
+      'halftime', 'ot1', 'ot2', 'ot3', 'ot4', 'ot5',
+      'in progress', 'playing'
+    ];
+    const isLive = game.status_jogo && liveStatuses.includes(game.status_jogo.toLowerCase());
+    if (!isLive) return;
+
+    const interval = setInterval(() => {
+      fetchGameData();
+    }, 30000); // Atualiza a cada 30 segundos para jogos ao vivo
+
+    return () => clearInterval(interval);
+  }, [game, fetchGameData]);
 
   // Efeito para destacar a avaliação a partir da URL
   useEffect(() => {

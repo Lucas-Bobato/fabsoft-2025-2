@@ -4,6 +4,7 @@ import api from "@/services/api";
 import FeaturedGameCard from "@/components/FeaturedGameCard";
 import ReviewCard from "@/components/ReviewCard";
 import UpcomingGameCard from "@/components/UpcomingGameCard";
+import LiveGameCard from "@/components/LiveGameCard";
 import Link from "next/link";
 
 import {
@@ -21,12 +22,13 @@ import {
 
 export default function HomePage() {
   const [featuredGames, setFeaturedGames] = useState([]);
+  const [liveGames, setLiveGames] = useState([]);
   const [upcomingGames, setUpcomingGames] = useState([]);
   const [personalizedFeed, setPersonalizedFeed] = useState([]);
   const [followingFeed, setFollowingFeed] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("foryou");
-  const [activeFilter, setActiveFilter] = useState("esta_semana");
+  const [activeFilter, setActiveFilter] = useState("ultimos_2_dias");
 
   const fetchFeaturedGames = async (tipo = "esta_semana") => {
     try {
@@ -34,6 +36,15 @@ export default function HomePage() {
       setFeaturedGames(response.data);
     } catch (error) {
       console.error("Erro ao buscar jogos em destaque:", error);
+    }
+  };
+
+  const fetchLiveGames = async () => {
+    try {
+      const response = await api.get("/jogos/ao-vivo");
+      setLiveGames(response.data);
+    } catch (error) {
+      console.error("Erro ao buscar jogos ao vivo:", error);
     }
   };
 
@@ -91,6 +102,7 @@ export default function HomePage() {
       try {
         await Promise.all([
           fetchFeaturedGames(),
+          fetchLiveGames(),
           fetchUpcomingGames(),
           fetchPersonalizedFeed(),
           fetchFollowingFeed()
@@ -100,6 +112,13 @@ export default function HomePage() {
       }
     };
     fetchData();
+
+    // Atualizar jogos ao vivo a cada 30 segundos
+    const liveGamesInterval = setInterval(fetchLiveGames, 30000);
+    
+    return () => {
+      clearInterval(liveGamesInterval);
+    };
   }, []);
 
   const handleFilterChange = async (filter) => {
@@ -128,9 +147,9 @@ export default function HomePage() {
   };
 
   const filterButtons = [
-    { key: "esta_semana", label: "Esta semana" },
-    { key: "ultimos_3_dias", label: "Últimos 3 dias" },
+    { key: "hoje", label: "Hoje" },
     { key: "ontem", label: "Ontem" },
+    { key: "ultimos_7_dias", label: "Últimos 7 dias" },
   ];
 
   return (
@@ -138,6 +157,26 @@ export default function HomePage() {
       <Grid columns={{ initial: "1", lg: "4" }} gap="8">
         {/* Main Content */}
         <Box style={{ gridColumn: "span 3" }}>
+          {/* Jogos ao Vivo Section */}
+          {liveGames.length > 0 && (
+            <Flex direction="column" gap="4" mb="8">
+              <Box>
+                <Heading as="h2" size="6" mb="1">
+                  🔴 Ao Vivo
+                </Heading>
+                <Text as="p" color="gray" mb="4">
+                  Jogos acontecendo neste momento
+                </Text>
+              </Box>
+              
+              <Grid columns={{ initial: "1", sm: "2", lg: "4" }} gap="3">
+                {liveGames.map((game) => (
+                  <LiveGameCard key={game.id} game={game} />
+                ))}
+              </Grid>
+            </Flex>
+          )}
+
           {/* Em Destaque Section */}
           <Flex direction="column" gap="4" mb="8">
             <Box>
@@ -145,9 +184,8 @@ export default function HomePage() {
                 Em Destaque
               </Heading>
               <Text as="p" color="gray" mb="4">
-                Partidas recentes bem avaliadas pela comunidade.
+                Jogos finalizados com mais avaliações da comunidade
               </Text>
-              
               {/* Filter Buttons */}
               <Flex gap="2" mb="4" wrap="wrap">
                 {filterButtons.map((filter) => (
@@ -181,9 +219,19 @@ export default function HomePage() {
               </Grid>
             ) : (
               <Card style={{ padding: "40px", textAlign: "center" }}>
-                <Text color="gray" size="3">
-                  Nenhum jogo em destaque encontrado para este período.
+                <Text color="gray" size="3" mb="2">
+                  Nenhum jogo finalizado com avaliações encontrado para este período.
                 </Text>
+                <Text color="gray" size="2" mb="3">
+                  Os jogos em destaque aparecerão aqui quando houver jogos finalizados com avaliações da comunidade.
+                </Text>
+                <RadixLink asChild>
+                  <Link href="/jogos-finalizados" style={{ textDecoration: "none" }}>
+                    <Button variant="outline" size="2">
+                      Ver todos os jogos finalizados
+                    </Button>
+                  </Link>
+                </RadixLink>
               </Card>
             )}
           </Flex>
@@ -245,34 +293,51 @@ export default function HomePage() {
           </Tabs.Root>
         </Box>
 
-        {/* Sidebar - Próximos Jogos */}
+        {/* Sidebar */}
         <Box>
-          <Flex direction="column" gap="4">
-            <Flex justify="between" align="baseline">
-              <Heading as="h2" size="5">
-                Próximos Jogos
-              </Heading>
-              <RadixLink asChild size="2">
-                <Link href="/jogos">Ver mais</Link>
-              </RadixLink>
-            </Flex>
-            {loading ? (
-              <Flex justify="center" p="6">
-                <Spinner />
-              </Flex>
-            ) : upcomingGames.length > 0 ? (
-              <Flex direction="column" gap="3">
-                {upcomingGames.map((game) => (
-                  <UpcomingGameCard key={game.id} game={game} />
-                ))}
-              </Flex>
-            ) : (
-              <Card style={{ padding: "20px", textAlign: "center" }}>
-                <Text color="gray" size="2">
-                  Nenhum jogo próximo encontrado.
-                </Text>
-              </Card>
+          <Flex direction="column" gap="6">
+            {/* Jogos ao Vivo Resumo (se houver) */}
+            {liveGames.length > 0 && (
+              <Box>
+                <Heading as="h2" size="5" mb="3">
+                  🔴 Ao Vivo ({liveGames.length})
+                </Heading>
+                <Flex direction="column" gap="2">
+                  {liveGames.slice(0, 2).map((game) => (
+                    <LiveGameCard key={game.id} game={game} />
+                  ))}
+                </Flex>
+              </Box>
             )}
+
+            {/* Próximos Jogos */}
+            <Box>
+              <Flex justify="between" align="baseline" mb="3">
+                <Heading as="h2" size="5">
+                  Próximos Jogos
+                </Heading>
+                <RadixLink asChild size="2">
+                  <Link href="/jogos">Ver mais</Link>
+                </RadixLink>
+              </Flex>
+              {loading ? (
+                <Flex justify="center" p="6">
+                  <Spinner />
+                </Flex>
+              ) : upcomingGames.length > 0 ? (
+                <Flex direction="column" gap="3">
+                  {upcomingGames.map((game) => (
+                    <UpcomingGameCard key={game.id} game={game} />
+                  ))}
+                </Flex>
+              ) : (
+                <Card style={{ padding: "20px", textAlign: "center" }}>
+                  <Text color="gray" size="2">
+                    Nenhum jogo próximo encontrado.
+                  </Text>
+                </Card>
+              )}
+            </Box>
           </Flex>
         </Box>
       </Grid>

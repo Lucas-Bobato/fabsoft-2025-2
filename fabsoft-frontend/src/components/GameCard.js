@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { Card, Flex, Box, Text, Avatar, Heading } from "@radix-ui/themes";
-import { StarIcon } from "@radix-ui/react-icons";
+import { Card, Flex, Box, Text, Avatar, Heading, Badge } from "@radix-ui/themes";
+import { Star, Clock, CheckCircle, Play } from "lucide-react";
 
 export default function GameCard({ gameData }) {
   const {
@@ -13,6 +13,7 @@ export default function GameCard({ gameData }) {
     time_visitante,
     total_avaliacoes,
     media_geral,
+    status_jogo,
   } = gameData;
 
   if (!time_casa || !time_visitante) {
@@ -20,11 +21,33 @@ export default function GameCard({ gameData }) {
   }
 
   const averageRating = media_geral || 0;
-  const getRatingColor = (rating) => {
-    if (rating >= 4.5) return "var(--green-9)";
-    if (rating >= 3.5) return "var(--yellow-9)";
-    if (rating > 0) return "var(--orange-9)";
-    return "var(--gray-9)";
+
+  const getStatusVariant = (status) => {
+    if (!status) return "gray";
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes("final") || statusLower === "finalizado") return "green";
+    if (statusLower.includes("qtr") || statusLower.includes("ao_vivo") || statusLower.includes("em_andamento")) return "red";
+    if (statusLower === "agendado" || statusLower.includes("pm") || statusLower.includes("am")) return "blue";
+    return "gray";
+  };
+
+  const getStatusText = (status) => {
+    if (!status) return "Agendado";
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes("final") || statusLower === "finalizado") return "Final";
+    if (statusLower.includes("qtr")) return status;
+    if (statusLower.includes("ao_vivo") || statusLower.includes("em_andamento")) return "Ao Vivo";
+    if (statusLower === "agendado") return "Agendado";
+    return status;
+  };
+
+  const getStatusIcon = (status) => {
+    if (!status) return <Clock size={12} />;
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes("final") || statusLower === "finalizado") return <CheckCircle size={12} />;
+    if (statusLower.includes("qtr") || statusLower.includes("ao_vivo") || statusLower.includes("em_andamento")) return <Play size={12} />;
+    if (statusLower === "agendado" || statusLower.includes("pm") || statusLower.includes("am")) return <Clock size={12} />;
+    return <Clock size={12} />;
   };
 
   return (
@@ -35,9 +58,16 @@ export default function GameCard({ gameData }) {
       <Card style={{ height: "100%", cursor: "pointer" }}>
         <Flex direction="column" justify="between" style={{ height: "100%" }}>
           <Box>
-            <Text as="p" size="1" color="gray" align="center" mb="3">
-              {temporada}
-            </Text>
+            {/* Status e Temporada */}
+            <Flex justify="between" align="center" mb="3">
+              <Text size="1" color="gray">
+                {temporada}
+              </Text>
+              <Badge variant="soft" color={getStatusVariant(status_jogo)}>
+                {getStatusIcon(status_jogo)}
+                {getStatusText(status_jogo)}
+              </Badge>
+            </Flex>
             <Flex direction="column" gap="3">
               <Flex justify="between" align="center">
                 <Flex align="center" gap="3">
@@ -63,38 +93,42 @@ export default function GameCard({ gameData }) {
               </Flex>
             </Flex>
           </Box>
-          <Flex align="end" justify="between" mt="4" pt="3">
-            <Text size="1" color="gray">
-              {new Date(data_jogo).toLocaleDateString("pt-BR")}
-            </Text>
-            <Box>
-              {total_avaliacoes > 0 ? (
-                <Flex direction="column" align="end" gap="1">
-                  <Flex align="center" gap="1">
-                    <StarIcon
-                      width="16"
-                      height="16"
-                      color={getRatingColor(averageRating)}
-                    />
-                    <Text
-                      weight="bold"
-                      style={{ color: getRatingColor(averageRating) }}
-                    >
-                      {averageRating.toFixed(1)}
+          {/* Footer com data e avaliações */}
+          <Box mt="4" pt="3" style={{ borderTop: "1px solid var(--gray-6)" }}>
+            <Flex justify="between" align="end">
+              <Text size="1" color="gray">
+                {new Date(data_jogo).toLocaleDateString("pt-BR", {
+                  day: "2-digit",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                })}
+              </Text>
+              <Box>
+                {total_avaliacoes > 0 ? (
+                  <Flex direction="column" align="end" gap="1">
+                    <Flex align="center" gap="1">
+                      <Star
+                        size={14}
+                        fill="var(--accent-9)"
+                        color="var(--accent-9)"
+                      />
+                      <Text size="2" weight="bold" color="accent">
+                        {averageRating.toFixed(1)}
+                      </Text>
+                    </Flex>
+                    <Text size="1" color="gray">
+                      {total_avaliacoes} {total_avaliacoes === 1 ? "avaliação" : "avaliações"}
                     </Text>
                   </Flex>
+                ) : (
                   <Text size="1" color="gray">
-                    {total_avaliacoes}{" "}
-                    {total_avaliacoes === 1 ? "avaliação" : "avaliações"}
+                    Sem avaliações
                   </Text>
-                </Flex>
-              ) : (
-                <Text size="1" color="gray">
-                  Seja o primeiro a avaliar!
-                </Text>
-              )}
-            </Box>
-          </Flex>
+                )}
+              </Box>
+            </Flex>
+          </Box>
         </Flex>
       </Card>
     </Link>

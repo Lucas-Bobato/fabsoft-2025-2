@@ -713,10 +713,13 @@ def _sync_games_from_schedule_v2(db: Session, days_ahead: int = 30, silent_fail:
                 try:
                     game_time_str = game.get('GAME_STATUS_TEXT', '')
                     if game_time_str and "ET" in game_time_str and ":" in game_time_str:
-                        et_zone = ZoneInfo("America/New_York")
+                        brt_zone = ZoneInfo("America/Sao_Paulo")
                         time_str = game_time_str.replace(' ET', '')
                         time_obj = datetime.strptime(time_str, '%I:%M %p').time()
-                        data_jogo_final = datetime.combine(data_base, time_obj, tzinfo=et_zone)
+                        # Cria datetime no fuso ET, depois converte para BRT
+                        et_zone = ZoneInfo("America/New_York")
+                        dt_et = datetime.combine(data_base, time_obj, tzinfo=et_zone)
+                        data_jogo_final = dt_et.astimezone(brt_zone)
                 except (ValueError, TypeError) as e:
                     if not silent_fail:
                         print(f"    -> Usando horário padrão para jogo {game_id}")

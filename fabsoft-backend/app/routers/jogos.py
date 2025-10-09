@@ -256,9 +256,26 @@ def read_highlighted_games(
 ):
     """
     Retorna jogos em destaque baseados no tipo solicitado.
-    Tipos disponíveis: esta_semana, ultimos_3_dias, ontem, tournament
+    Tipos disponíveis: esta_semana, ultimos_3_dias, ontem, ultimos_2_dias, tournament
     """
     return crud.get_highlighted_games(db, tipo_destaque=tipo, limit=limit)
+
+@router.get("/finalizados-48h", response_model=List[schemas.JogoDestaque])
+def read_finished_games_48h(
+    limit: int = 20,
+    db: Session = Depends(get_db)
+):
+    """
+    Retorna jogos finalizados nas últimas 48 horas ordenados por mais avaliações.
+    """
+    return crud.get_finished_games_last_48h(db, limit=limit)
+
+@router.get("/ao-vivo", response_model=List[schemas.Jogo])
+def read_live_games(db: Session = Depends(get_db)):
+    """
+    Retorna jogos que estão acontecendo ao vivo neste momento.
+    """
+    return crud.get_live_games(db)
 
 @router.post("/", response_model=schemas.Jogo)
 def create_jogo(jogo: schemas.JogoCreate, db: Session = Depends(get_db)):
