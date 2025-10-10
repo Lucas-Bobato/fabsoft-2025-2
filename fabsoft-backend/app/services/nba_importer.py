@@ -291,8 +291,7 @@ def sync_nba_games_v2(db: Session, season: str):
                             continue
                             
                         game_date_naive = datetime.strptime(game_date_str, '%Y-%m-%d')
-                        game_date_aware = datetime.combine(game_date_naive, datetime.min.time(), tzinfo=timezone.utc)
-                        
+                        game_date_aware = datetime.combine(game_date_naive, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=1)
                         db_jogo = crud.create_jogo(db, jogo=schemas.JogoCreate(
                             api_id=game_id,
                             data_jogo=game_date_aware,
@@ -383,16 +382,16 @@ def sync_nba_games(db: Session, season: str):
             except Exception:
                 continue
 
-            game_date_aware = datetime.combine(game_date_naive, datetime.min.time(), tzinfo=timezone.utc)
+                game_date_aware = datetime.combine(game_date_naive, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=1)
 
-            db_jogo = crud.create_jogo(db, jogo=schemas.JogoCreate(
-                api_id=int_game_id,
-                data_jogo=game_date_aware,
-                temporada=season,
-                liga_id=liga_nba_id,
-                time_casa_id=time_casa_local.id,
-                time_visitante_id=time_visitante_local.id,
-            ))
+                db_jogo = crud.create_jogo(db, jogo=schemas.JogoCreate(
+                    api_id=int_game_id,
+                    data_jogo=game_date_aware,
+                    temporada=season,
+                    liga_id=liga_nba_id,
+                    time_casa_id=time_casa_local.id,
+                    time_visitante_id=time_visitante_local.id,
+                ))
             jogos_adicionados += 1
 
         if not db_jogo:
@@ -643,7 +642,7 @@ def _sync_games_from_schedule_v2(db: Session, days_ahead: int = 30, silent_fail:
     try:
         # Determina a temporada atual (corrigido para 2025)
         current_date = datetime.now()
-        if current_date.month >= 7:  # Julho ou depois = próxima temporada 
+        if current_date.month >= 7:  # Julho ou depois = próxima temporada
             season = f"{current_date.year}-{str(current_date.year + 1)[-2:]}"
         else:  # Janeiro a junho = temporada anterior
             season = f"{current_date.year - 1}-{str(current_date.year)[-2:]}"
@@ -662,7 +661,7 @@ def _sync_games_from_schedule_v2(db: Session, days_ahead: int = 30, silent_fail:
         
         # Filtra por data
         future_games = games_df[
-            (games_df['GAME_DATE'] >= today) & 
+            (games_df['GAME_DATE'] >= today) &
             (games_df['GAME_DATE'] <= future_date)
         ]
         
@@ -707,8 +706,8 @@ def _sync_games_from_schedule_v2(db: Session, days_ahead: int = 30, silent_fail:
                     continue
                 
                 data_base = datetime.strptime(game_date_str, '%Y-%m-%d')
-                data_jogo_final = datetime.combine(data_base, datetime.min.time(), tzinfo=timezone.utc)
-                
+                data_jogo_final = datetime.combine(data_base, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=1)
+
                 # Tenta processar o horário do jogo se disponível
                 try:
                     game_time_str = game.get('GAME_STATUS_TEXT', '')
@@ -719,11 +718,11 @@ def _sync_games_from_schedule_v2(db: Session, days_ahead: int = 30, silent_fail:
                         # Cria datetime no fuso ET, depois converte para BRT
                         et_zone = ZoneInfo("America/New_York")
                         dt_et = datetime.combine(data_base, time_obj, tzinfo=et_zone)
-                        data_jogo_final = dt_et.astimezone(brt_zone)
+                        data_jogo_final = dt_et.astimezone(brt_zone) + timedelta(hours=1)
                 except (ValueError, TypeError) as e:
                     if not silent_fail:
                         print(f"    -> Usando horário padrão para jogo {game_id}")
-                
+
                 # Cria o jogo no banco
                 crud.create_jogo(db, jogo=schemas.JogoCreate(
                     api_id=game_id,
@@ -850,8 +849,8 @@ def _get_future_games_from_league_finder(db: Session, days_ahead: int = 30, sile
                 # Prepara data do jogo
                 game_date_str = str(home_record['GAME_DATE'])
                 data_base = datetime.strptime(game_date_str, '%Y-%m-%d')
-                data_jogo_final = datetime.combine(data_base, datetime.min.time(), tzinfo=timezone.utc)
-                
+                data_jogo_final = datetime.combine(data_base, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=1)
+
                 # Cria o jogo no banco
                 crud.create_jogo(db, jogo=schemas.JogoCreate(
                     api_id=game_id,

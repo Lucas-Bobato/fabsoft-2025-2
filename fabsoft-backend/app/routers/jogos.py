@@ -281,7 +281,7 @@ def read_live_games(db: Session = Depends(get_db)):
 def create_jogo(jogo: schemas.JogoCreate, db: Session = Depends(get_db)):
     return crud.create_jogo(db=db, jogo=jogo)
 
-@router.get("/", response_model=List[schemas.Jogo])
+@router.get("/", response_model=List[schemas.JogoDestaque])
 def read_jogos(
     skip: int = 0,
     limit: int = 100,
@@ -289,8 +289,11 @@ def read_jogos(
     time_id: Optional[int] = None,
     data: Optional[date] = None,
     status: Optional[str] = None,
+    order_by: Optional[str] = None,
+    order_direction: Optional[str] = "desc",
+    avaliado_por_mim: Optional[bool] = False
 ):
-    return crud.get_jogos(db, skip=skip, limit=limit, time_id=time_id, data=data, status=status)
+    return crud.get_jogos_with_ratings(db, skip=skip, limit=limit, time_id=time_id, data=data, status=status, order_by=order_by, order_direction=order_direction, avaliado_por_mim=avaliado_por_mim)
 
 @router.get("/slug/{slug}", response_model=schemas.Jogo)
 def read_jogo_by_slug(slug: str, db: Session = Depends(get_db)):

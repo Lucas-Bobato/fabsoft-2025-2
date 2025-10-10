@@ -541,6 +541,7 @@ class JogoDestaque(BaseModel):
     placar_visitante: int
     time_casa: TimeSimple
     time_visitante: TimeSimple
+    status_jogo: Optional[str] = None
     total_avaliacoes: int = 0
     media_geral: float = 0.0
     tipo_destaque: str  # "esta_semana", "ultimos_3_dias", "ontem", "tournament"
