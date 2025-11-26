@@ -47,7 +47,16 @@ import { teamColors } from "@/utils/teamColors";
 
 // Function to get profile image URL
 const getProfileImageUrl = (photoUrl) => {
-  return photoUrl || "/placeholder.png";
+  if (photoUrl) {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      return new URL(photoUrl, baseUrl).href;
+    } catch (error) {
+      console.error("Error constructing profile pic URL:", error);
+      return "/placeholder.png";
+    }
+  }
+  return "/placeholder.png";
 };
 
 // Componente interno para a barra de distribuição de notas (vertical como no print)
@@ -330,6 +339,11 @@ export default function ProfilePage() {
     }
   };
 
+  const handleProfileUpdate = async () => {
+    // Força uma nova busca dos dados do perfil
+    await fetchPageData();
+  };
+
   const handleOpenModal = async (type) => {
     try {
       const response = await api.get(`/usuarios/${username}/${type}`);
@@ -375,7 +389,7 @@ export default function ProfilePage() {
     profile.conquistas_desbloqueadas.map((a) => a.conquista.id)
   );
   const maxRatingCount = stats
-    ? Math.max(1, ...Object.values(stats.distribuicao_notas))
+    ? Math.max(1, ...Object.values(stats.distribuicao_notas || {}))
     : 1;
   const ratingColors = {
     0.5: "#ef4444",
@@ -403,7 +417,7 @@ export default function ProfilePage() {
         <EditProfileModal
           user={profile}
           onClose={() => setIsEditModalOpen(false)}
-          onProfileUpdate={fetchPageData}
+          onProfileUpdate={handleProfileUpdate}
         />
       )}
 
@@ -793,17 +807,23 @@ export default function ProfilePage() {
                       gap="2"
                       style={{ height: "250px" }}
                     >
-                      {[0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map(
-                        (rating) => (
+                      {(() => {
+                        const getCount = (rating) => {
+                          const m = stats?.distribuicao_notas || {};
+                          const k1 = String(rating); // e.g., "1"
+                          const k2 = Number(rating).toFixed(1); // e.g., "1.0"
+                          return m[k1] ?? m[k2] ?? 0;
+                        };
+                        return [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((rating) => (
                           <VerticalRatingBar
                             key={rating}
                             rating={rating}
-                            count={stats.distribuicao_notas[rating] || 0}
+                            count={getCount(rating)}
                             maxCount={maxRatingCount}
                             color={ratingColors[rating]}
                           />
-                        )
-                      )}
+                        ));
+                      })()}
                     </Flex>
                   </Card>
                 </Box>

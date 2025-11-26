@@ -34,6 +34,16 @@ const formatDate = (dateString) =>
     year: "numeric",
   });
 
+const buildPhotoUrl = (photoUrl) => {
+  if (!photoUrl) return "/placeholder.png";
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    return new URL(photoUrl, baseUrl).href;
+  } catch (e) {
+    return "/placeholder.png";
+  }
+};
+
 const CommentSection = ({ reviewId }) => {
   const { user } = useAuth();
   const [comments, setComments] = useState([]);
@@ -102,11 +112,7 @@ const CommentSection = ({ reviewId }) => {
       <form onSubmit={handlePostComment}>
         <Flex gap="3" align="center">
           <Avatar
-            src={
-              user?.foto_perfil
-                ? `${process.env.NEXT_PUBLIC_API_URL}${user.foto_perfil}`
-                : "/placeholder.png"
-            }
+            src={buildPhotoUrl(user?.foto_perfil)}
             fallback={user?.username ? user.username[0] : "U"}
             size="2"
             radius="full"
@@ -132,11 +138,7 @@ const CommentSection = ({ reviewId }) => {
             <Flex key={comment.id} gap="3">
               <Avatar
                 asChild
-                src={
-                  comment.usuario.foto_perfil
-                    ? `${process.env.NEXT_PUBLIC_API_URL}${comment.usuario.foto_perfil}`
-                    : "/placeholder.png"
-                }
+                src={buildPhotoUrl(comment.usuario.foto_perfil)}
                 fallback={comment.usuario.username[0]}
                 size="2"
                 radius="full"
@@ -285,11 +287,7 @@ const ReviewItem = ({ review, onDataChange, isHighlighted, autoExpandComments })
           <Flex gap="3">
             <Avatar
               asChild
-              src={
-                review.usuario.foto_perfil
-                  ? `${process.env.NEXT_PUBLIC_API_URL}${review.usuario.foto_perfil}`
-                  : "/placeholder.png"
-              }
+              src={buildPhotoUrl(review.usuario.foto_perfil)}
               fallback={review.usuario.username[0]}
               size="3"
               radius="full"

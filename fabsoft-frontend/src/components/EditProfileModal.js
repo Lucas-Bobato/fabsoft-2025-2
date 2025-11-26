@@ -55,6 +55,22 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
 
     try {
       if (newProfilePic) {
+        // Validação do tipo de arquivo
+        const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+        if (!validTypes.includes(newProfilePic.type)) {
+          alert("Tipo de arquivo inválido. Apenas PNG ou JPEG são permitidos.");
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Validação do tamanho do arquivo (10MB)
+        const maxSize = 10 * 1024 * 1024;
+        if (newProfilePic.size > maxSize) {
+          alert(`Arquivo muito grande. Tamanho máximo: 10MB. Tamanho enviado: ${(newProfilePic.size / (1024 * 1024)).toFixed(2)}MB`);
+          setIsSubmitting(false);
+          return;
+        }
+
         const uploadFormData = new FormData();
         uploadFormData.append("file", newProfilePic);
         const uploadResponse = await api.post(
@@ -73,7 +89,8 @@ export default function EditProfileModal({ user, onClose, onProfileUpdate }) {
       onClose();
     } catch (error) {
       console.error("Erro ao atualizar o perfil:", error);
-      alert("Não foi possível atualizar o perfil. Tente novamente.");
+      const errorMessage = error.response?.data?.detail || "Não foi possível atualizar o perfil. Tente novamente.";
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

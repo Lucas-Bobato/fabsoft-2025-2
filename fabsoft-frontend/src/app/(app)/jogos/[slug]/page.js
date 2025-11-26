@@ -151,18 +151,8 @@ const StatsTabs = ({ game, reviews, onDataChange, highlightReviewId, officialSta
 };
 
 export default function GameDetailsPage() {
-  // Sincronizar dados do jogo finalizado
-  useEffect(() => {
-    if (!game) return;
-    const isFinalizado = game.status_jogo && ["finalizado", "final", "Finished", "Final"].includes(game.status_jogo.toLowerCase());
-    if (isFinalizado) {
-      // Chama o endpoint de sincronização
-      api.post(`/admin/sync-games/${game.temporada}`)
-        .catch((err) => console.error("Erro ao sincronizar dados do jogo finalizado:", err));
-    }
-  }, [game]);
   const params = useParams();
-  const searchParams = useSearchParams(); // 2. Inicializar o hook
+  const searchParams = useSearchParams();
   const { slug } = params;
   const { isAuthenticated } = useAuth();
   const [game, setGame] = useState(null);
@@ -203,6 +193,16 @@ export default function GameDetailsPage() {
   useEffect(() => {
     fetchGameData();
   }, [fetchGameData]);
+
+  // Sincronizar dados do jogo finalizado
+  useEffect(() => {
+    if (!game) return;
+    const isFinalizado = game.status_jogo && ["finalizado", "final", "Finished", "Final"].includes(game.status_jogo.toLowerCase());
+    if (isFinalizado) {
+      api.post(`/admin/sync-games/${game.temporada}`)
+        .catch((err) => console.error("Erro ao sincronizar dados do jogo finalizado:", err));
+    }
+  }, [game]);
 
   // Atualizar jogos ao vivo automaticamente
   useEffect(() => {

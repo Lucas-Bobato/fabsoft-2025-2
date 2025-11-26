@@ -62,6 +62,17 @@ export default function ReviewCard({ review, onLike }) {
     return null;
   }
 
+  const getProfilePicUrl = (photoUrl) => {
+    if (!photoUrl) return "/placeholder.png";
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      return new URL(photoUrl, baseUrl).href;
+    } catch (e) {
+      return "/placeholder.png";
+    }
+  };
+  const userAvatarUrl = getProfilePicUrl(review.usuario?.foto_perfil);
+
   return (
     <Card
       className="review-card"
@@ -143,7 +154,7 @@ export default function ReviewCard({ review, onLike }) {
         {/* Usuário e resenha */}
         <Flex gap="3">
           <Avatar
-            src={review.usuario.foto_perfil}
+            src={userAvatarUrl}
             fallback={review.usuario.username[0]?.toUpperCase()}
             size="3"
             style={{ cursor: "pointer" }}
